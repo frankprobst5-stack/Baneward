@@ -7,3 +7,9 @@ target/
 .env
 *.db
 *.sqlite3
+
+# Real bulk USDA data, ~10MB and growing once the full enrichment pass
+# runs against all ~90,000 species -- reproducible via data/build_phase0.py,
+# not something to carry in git history. CC0-licensed, re-downloadable
+# any time from https://hosted-datasets.gbif.org/datasets/usda.zip
+data/raw/
