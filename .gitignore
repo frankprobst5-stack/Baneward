@@ -13,3 +13,9 @@ target/
 # not something to carry in git history. CC0-licensed, re-downloadable
 # any time from https://hosted-datasets.gbif.org/datasets/usda.zip
 data/raw/
+
+# Per-species cached API responses (35,326 files) and the run log --
+# reproducible via data/ingest_full.py against the real USDA API,
+# not something to carry in git history.
+data/cache/
+data/ingest_full.log

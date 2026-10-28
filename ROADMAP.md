@@ -6,13 +6,13 @@ the [Citadel Ecosystem](https://github.com/frankprobst5-stack/citadel-ecosystem)
 ## Where things stand (2026-10-27)
 
 Repo created, name chosen (`Baneward` — "bane" = poison, as in wolfsbane/henbane, + "ward" =
-guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0 is real and
-done for its core scope**: the USDA PLANTS data pipeline works end to end, verified against
-live sources, not assumed — see below. Two of the three originally-planned sources turned
-out not to hold up on direct verification; the plan was corrected in response, not papered
-over.
+guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0 is fully
+done**: all 35,326 real US species are enriched and sitting in a real local database, zero
+failures, verified against live sources throughout — not assumed. Two of the three
+originally-planned sources turned out not to hold up on direct verification; the plan was
+corrected in response, not papered over. See below for the full detail.
 
-## Phase 0 — Prove the data pipeline ✅ core pipeline done 2026-10-27
+## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
 **Real correction, found by actually testing each source rather than trusting the original
 research summary:**
@@ -66,17 +66,38 @@ images, for instance, are honestly all copyrighted — 0 usable, not glossed ove
 empty except one deliberate demonstration entry (water hemlock, marked verified, cited to
 CDC NIOSH and USDA ARS) proving the edit/verification mechanism itself works.
 
+**Scaled to the real full dataset, 2026-10-27, same day**: `data/ingest_full.py` — a
+resumable, cached, 10-worker version of the same proven pipeline — ran against all
+**35,326 accepted, species-rank taxa** (deliberately excluding varieties/subspecies/
+synonyms; a forager needs "water hemlock," not six named varieties of it). **56 minutes,
+zero failures, every single species enriched.** Real final numbers:
+
+- **35,326 species**, full taxonomy/distribution/growth-habit/duration/common names.
+- **44,243 images** fetched, of which **18,121 are confirmed public-domain and usable**
+  (the rest correctly excluded as copyrighted, not discarded from the record — just not
+  surfaced as usable).
+- **7,676 species already have at least one real usable photo.**
+- Database: `data/baneward.db`, 16MB — small enough to live comfortably offline on
+  anything.
+- Spot-checked: searching "hemlock" or "ivy" correctly surfaces all three real water
+  hemlocks (*Cicuta maculata*, *C. douglasii*, *C. bulbifera*) alongside unrelated
+  same-word species (hemlock dwarf mistletoe, ivyleaf maple) without confusing them —
+  real disambiguation, not just a keyword match.
+
+Tags table: still empty for all 35,326 species except the one original demonstration
+entry (water hemlock, marked verified, cited) — exactly by design. Phase 0's job was the
+pipeline, not the editorial pass; nothing here claims a plant is safe.
+
 **Real open questions, not resolved yet**:
-- Full-scale enrichment (all ~49,000 accepted taxa, not just 10) takes real time against the
-  live API — the data package's own `metadata.yaml` estimates ~1.5 hours with 10 parallel
-  threads. Needs a real rate-limiting/resumability plan before running at scale, not just
-  looping the prototype script.
 - Re-verify BRIT's NAEB site (may have been a transient connectivity issue, not confirmed
   dead).
 - Pipeline-test Wikipedia's own toxicity content as the real poison-data source, the same
   way USDA PLANTS just got tested — not yet done, this was ruled promising but unverified.
 - How a "red-alert" severity gets derived honestly once a real poison-data source is
   pipeline-tested, rather than invented.
+- Images themselves aren't downloaded/cached locally yet, only their URLs and copyright
+  status — a real offline-first build needs the actual image bytes, not links to a service
+  that won't be reachable grid-down. That's real Phase 1 work, not done here.
 
 ## Phase 1 — Pick the real storage/app shape
 
