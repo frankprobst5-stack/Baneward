@@ -99,14 +99,58 @@ pipeline, not the editorial pass; nothing here claims a plant is safe.
   status — a real offline-first build needs the actual image bytes, not links to a service
   that won't be reachable grid-down. That's real Phase 1 work, not done here.
 
-## Phase 1 — Pick the real storage/app shape
+## Phase 1 — Real standalone app, matching WayStation's own stack ✅ working scaffold 2026-10-28
 
-Build it like WayStation (its own project, own repo — already true) — but WayStation itself
-is a Tauri/Rust/React desktop app; whether Baneward matches that exact stack or picks
-something lighter-weight while keeping the same "own standalone app, tied into Citadel
-later" shape is a real decision not made yet. Needs: offline-first local storage for a
-large (tens of thousands of entries) searchable dataset with images, a real search/filter
-UI, and a real edit flow that enforces the unverified-until-confirmed rule from `README.md`.
+Frank's own clarification on why "build it like WayStation" matters: so people can run it
+as a fully standalone app on its own, *or* plug it into Citadel the same optional way
+WayStation does — not an either/or. That settles the stack question Phase 0 left open:
+**Tauri v2 + React 19 + TypeScript + Rust, same as WayStation**, not a lighter-weight
+alternative.
+
+**Real app built and verified, `app/`**:
+- Rust backend (`src-tauri/`): `rusqlite` (bundled SQLite, no system dependency),
+  `tauri-plugin-single-instance` + `tauri-plugin-deep-link` registered in the same order
+  and with the same real reasoning as WayStation's own `lib.rs` (single-instance first, so
+  a second launch focuses the existing window instead of fighting over the same database
+  file) — `baneward://` is the scheme, mirroring `waystation://` exactly, registered now
+  even though the Citadel-side launch tile is real Phase 3 work, not done here.
+- The real 35,326-species database ships **bundled inside the app itself**
+  (`src-tauri/resources/baneward.db`, 16MB) and gets copied into the user's own real
+  per-OS app data directory on first run only — verified live: a fresh launch against an
+  empty `BANEWARD_DATA_DIR` correctly bootstrapped all 35,326 species from the bundled
+  copy, and a second launch correctly left the user's own (by-then-possibly-edited) copy
+  alone rather than overwriting it with a newer bundled resource. This is the real
+  mechanism that makes "runs standalone, data already inside" true, not just a claim.
+- Three real commands: `search_species` (common/scientific name, poisonous species
+  surfaced with a flag), `get_species` (full detail + images + tags), `add_tag` /
+  `verify_tag` / `delete_tag`. The safety rule is enforced in the Rust layer, not just the
+  UI: `add_tag`'s own SQL hardcodes `verified = 0` — there's no parameter a careless
+  frontend change could flip to bypass it. `verify_tag` is the only path to a confirmed
+  tag, and it's a separate, deliberate call.
+- Real UI: search-and-select on the left, species detail (taxonomy, duration, growth
+  habit, native status) on the right, public-domain images only (copyrighted ones
+  correctly excluded, not shown), tags listed with a visible verified/unverified badge, and
+  an add-tag form whose own copy says plainly that new tags start unverified. Same Citadel
+  Ecosystem dark palette (literal hex values) as WayStation's own.
+- **Real bug found during verification, not left in**: the full-scale ingest
+  (`data/ingest_full.py`) rebuilds the whole database from scratch every run, which
+  silently dropped the one demonstration tag `data/build_phase0.py` had proven the
+  mechanism with — caught by testing the app's actual search query against the real
+  bundled database, not assumed correct. Fixed with a small, separate,
+  idempotent `data/seed_demo_tag.py` — deliberately not folded into `ingest_full.py`
+  itself, so a real demonstration entry never gets mistaken for ingested USDA data.
+- Verified for real: `cargo check` clean, `npm run build` (tsc + vite) clean, a real debug
+  build compiled and ran (`cargo tauri dev`, ~2.5 minutes cold / ~1 minute incremental, both
+  on this real machine's own display), stayed alive, no panics. Visual confirmation of the
+  rendered window itself wasn't possible in this session (no screenshot tool available) —
+  worth a real look by actually running `npm run tauri dev` and checking it by eye before
+  calling the UI itself done, not just the plumbing.
+
+**Not done yet**: a real app icon (still Tauri's default), the actual `baneward://`
+Citadel-side launch tile (Phase 3), and everything Phase 1's original scope named that
+isn't search/tag-editing — image bytes cached locally instead of live USDA URLs (today's
+UI still needs the internet to show a photo), and any real UX pass beyond this first
+working version.
 
 ## Phase 2 — Local AI search integration
 

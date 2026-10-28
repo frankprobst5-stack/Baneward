@@ -19,3 +19,11 @@ data/raw/
 # not something to carry in git history.
 data/cache/
 data/ingest_full.log
+
+# The one real exception to `*.db` above: the bundled app resource is a
+# required build input (tauri.conf.json's bundle.resources references
+# it), not a generated artifact -- the app can't build from a fresh
+# clone without it. A user's own live copy (created at runtime in their
+# real per-OS app data directory, outside this repo entirely) is what
+# `*.db` is actually meant to exclude.
+!app/src-tauri/resources/baneward.db
