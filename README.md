@@ -31,6 +31,12 @@ cost.** Every design decision gets weighed against that first. Concretely:
   accident.
 - **Data comes from real, authoritative, legally reusable sources — not scraped foraging
   blogs.** See below.
+- **Absence of evidence is not evidence of safety. Identification confidence is not safety
+  confidence.** A species with no documented poison claim must never render as "safe" —
+  missing data means unreviewed, not clean. And a plant matching someone's described
+  characteristics is a candidate to investigate further, never a confirmed identification
+  to act on. These are two different kinds of uncertainty and neither one is allowed to
+  quietly become certainty anywhere in the Rust layer, the schema, or the UI.
 
 ## Real data sources (researched 2026-10-27)
 

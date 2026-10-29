@@ -156,6 +156,31 @@ isn't search/tag-editing — image bytes cached locally instead of live USDA URL
 UI still needs the internet to show a photo), and any real UX pass beyond this first
 working version.
 
+**Real sizing check on that image-caching gap, 2026-10-29**: an outside review estimated
+"~150KB/image, ~2.7GB total" for all 18,121 usable images — checked that number directly
+rather than repeating it. A real 5-image sample from `plants.sc.egov.usda.gov` came back
+13KB–49KB, averaging ~34KB — roughly **~600MB total**, not 2.7GB (small sample, worth a
+real full measurement before building around either number, but the order-of-magnitude
+correction stands). Still too much to bundle inside a 16MB installer, so a post-install
+background download manager is still the right shape — just not the one the estimate made
+it look like. Real nuance worth keeping for whenever this gets built: don't make "download
+all 18,121" the only offline-capable option — a curated core set (dangerous species, common
+edible look-alikes, the photos that best show a distinguishing feature) that ships or syncs
+first, with "my region" and "everything" as explicit, sized-up-front opt-ins, serves someone
+on a slow or metered connection far better than one all-or-nothing download. And once any
+of this exists, it needs a real offline test — launch with networking disabled and confirm
+search, cached images, and verified claims all still work, and that nothing silently falls
+back to a live USDA URL without saying so.
+
+**Real gap this surfaced that wasn't tracked anywhere yet**: every database update so far
+this session (Phase 1.5, 1.6, 1.7) has been applied to the live running app by hand — check
+for new user claims first, then `ATTACH DATABASE` the new tables in surgically. That's the
+right instinct, but it's not a real mechanism an actual end user could use — they don't have
+a terminal and a copy of this repo. Future released updates (corrected taxonomy, new
+images, new characteristics) need a real in-app path that can add/update reference data
+without ever touching a user's own claims, verifications, or field notes. Not designed yet;
+worth deciding before this ships to anyone who isn't also its developer.
+
 ## Phase 1.5 — Real identification data: synonyms and characteristics ✅ done 2026-10-29
 
 Real feedback from an outside review of Baneward (Frank shared it, asked to review the
@@ -248,6 +273,23 @@ and verified against the real running app's live database, not just the schema �
 first that no new claims had been added since the last session before migrating the live
 copy, same care as Phase 1.5's update.
 
+**Evidence-type meanings written down explicitly, 2026-10-29, documentation only, no
+schema change**: a third review pushed on what each `evidence_type` actually licenses
+Baneward to say, since the six values (traditional/laboratory/animal_study/human_clinical/
+regulatory/unspecified) were real from Phase 1.6 but their exact claim boundaries were only
+implicit. Worth stating plainly so nothing downstream (UI copy, a future AI layer) drifts
+into overclaiming: a traditional-use record means a use was documented, not that it's
+clinically effective; a laboratory finding is about the compound, not the whole plant in a
+human body; an animal study doesn't transfer its dose or effect to humans; a human clinical
+finding is scoped to its own study population and conditions; a regulatory source documents
+what that source says, not a universal rule; and the complete absence of any claim means
+unreviewed, never "safe." Also a real, smaller gap worth tracking: the `verified` column is
+still just a boolean, with no record of who verified a claim, when, or whether its original
+source has since changed or gone offline (the FDA and ARS checklist dead-ends earlier in
+this document are exactly the kind of source that can disappear). A real audit trail
+(verifier, timestamp, source-still-reachable) is better than a boolean that quietly loses
+that context — not built, worth doing before `verify_claim` gets used at any real scale.
+
 ## Phase 1.7 — Real Dr. Duke chemistry data, normalized after a real self-caught bug ✅ done 2026-10-29
 
 Phase 1.6 deliberately scoped Dr. Duke's ingest to `ETHNOBOT` only and left the
@@ -302,17 +344,35 @@ Phase 1.6); what's still just an idea is scoped into v2:
 
 - **Identification wizard** — step through observable traits (flower color, leaf shape,
   habitat) to narrow down a species without knowing its name first. Phase 1.5 shipped the
-  underlying data (200,872 characteristic rows) and wired it into text search, but nobody's
-  built the actual guided, step-by-step UI the review described — real data, no wizard yet.
+  underlying data (200,872 characteristic rows across 2,058 of 35,326 species — 5.8%) and
+  wired it into text search, but nobody's built the actual guided, step-by-step UI yet —
+  real data, no wizard yet. **A third review (2026-10-29) added a real constraint that
+  changes the design, not just the copy**: the wizard can't just warn that unindexed
+  species get hidden and call it done — it needs to treat a missing characteristic value as
+  a distinct `unknown` state, not the same as a documented `absent` (a plant with no
+  recorded flower color is not the same as a plant documented as not flowering), and name
+  search must still cover the full 35,326-species catalog even when characteristic search
+  can only cover the 5.8% — so a dangerous species with no structured traits never becomes
+  invisible just because it can't be found by trait.
 - **Visual, filterable plant browser** — browse by trait instead of typing a search term.
-  Same situation: the data exists, the browse-by-feature UI doesn't.
-- **Similar-species side-by-side comparison** — the review's own best example was exactly
-  Baneward's own classic case, poison hemlock vs. wild carrot/Queen Anne's lace. No
+  Same situation: the data exists, the browse-by-feature UI doesn't. Same `unknown`-vs-
+  `absent` requirement applies, and any coverage count shown next to a filter has to be a
+  real live query against the database, not a hardcoded "5.8%" that drifts as more
+  characteristic data gets added later.
+- **Curated dangerous-lookalike comparisons** — narrower and more useful than a general
+  species-to-species comparison tool, per the same third review: a reviewed registry of
+  specific dangerous pairs (poison hemlock vs. wild carrot/Queen Anne's lace is the obvious
+  first entry, already this project's own running example), not an auto-generated
+  "similar species" feature. Each pair's individual differentiators (stem markings, leaf
+  shape, etc.) need their own source and review status — a verified pair-level
+  relationship shouldn't imply every listed detail is independently confirmed. No
   comparison view exists yet; today a user has to open each species separately and
   remember the difference.
 - **Field notes** — a place for a user's own observations tied to a sighting (location,
   date, photo), separate from the editorial claims system. Not designed yet, not just
-  unbuilt.
+  unbuilt. Keep the user's own proposed identification visibly separate from a reviewed
+  determination, even after they pick a species from a candidate list — a field note is an
+  observation, not a confirmed ID.
 - **Kew's Medicinal Plant Names Services (MPNS)**, raised in the second review as a
   possible additional reference source — flagged early on as needing its own license
   check and never actually verified against the live service, unlike every other source
@@ -324,15 +384,40 @@ of living only in chat history.
 
 ## Phase 2 — Local AI search integration
 
-Wire up search/explain against Citadel's existing Off-Grid AI (Ollama) infrastructure,
-scoped strictly to already-verified entries per `README.md`'s own safety rule — not started,
-blocked on Phase 1's storage shape being real first.
+Wire up search/explain against Citadel's existing Off-Grid AI (Ollama) infrastructure — not
+started, blocked on Phase 1's storage shape being real first (it is, as of Phase 1.7).
+
+**Scope clarified 2026-10-29, a real ambiguity the third review caught in the line above**:
+"scoped to already-verified entries" could mean two different things — (a) the AI may only
+*search* species/claims that are already verified, or (b) the AI may search the full
+catalog but any *safety conclusion* it surfaces may only draw on verified claims. Only (b)
+is correct. (a) would create a real blind spot: a genuinely dangerous species whose claims
+just haven't been human-reviewed yet would become invisible to search, which is worse than
+surfacing it honestly with an "unreviewed" label. Concretely: the LLM is a semantic
+parser, not the safety authority — it turns a free-text description ("tall plant, white
+umbrella flowers, purple blotches on the stem") into a structured, schema-validated query
+against the real characteristics/claims tables; Rust executes that query deterministically
+and returns candidates plus what's verified/unverified/missing about each; the model never
+gets to write SQL, invent a column, or flip a claim's verified status itself. The app has
+to stay fully usable with Ollama absent or off — AI improves the search, it's never a
+dependency for reaching the underlying data.
 
 ## Phase 3 — Tie into Citadel
 
-Once Baneward is real and standalone (matching WayStation's own path to a `waystation://`
-launch tile), wire a launch point into Citadel's cockpit. Exact mechanism (a URI scheme like
-WayStation's, or something else) not decided — depends on what Phase 1 picks.
+Wire a launch point into Citadel's cockpit via `baneward://` (already registered in Phase
+1, mirroring `waystation://`) — not started, the actual handshake with Citadel's cockpit is
+the remaining work.
+
+**Design note added 2026-10-29, not yet built or tested**: a deep link can arrive before
+the React frontend finishes mounting, especially on a cold launch — a real class of race
+condition in Tauri v2, not unique to this scheme. Plan is a small Rust-side queue: buffer
+the incoming URI, hold it until the frontend emits its own `frontend-ready` signal, then
+deliver it and wait for an explicit acknowledgment before clearing the queue. Two real
+requirements once this gets built: delivery has to be idempotent (receiving the same URI
+twice must not open duplicate views or re-run the same search), and cold launch (app not
+running yet) and warm launch (already-running instance gets a second URI, same as
+`tauri-plugin-single-instance` already handles for a second app launch) are genuinely
+different cases that both need a real test, not just the cold-start path.
 
 ## Keeping this current
 
