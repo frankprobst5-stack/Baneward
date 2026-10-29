@@ -1,7 +1,7 @@
 //! Tauri commands — the real search/browse/edit surface over the local
 //! database. The one rule every write path here follows (see README.md):
-//! `add_tag` always inserts unverified; nothing here can make a tag
-//! appear verified except the separate, deliberate `verify_tag` call.
+//! `add_claim` always inserts unverified; nothing here can make a claim
+//! appear verified except the separate, deliberate `verify_claim` call.
 
 use crate::db::Db;
 use rusqlite::params;
@@ -14,7 +14,7 @@ pub struct SpeciesSummary {
     pub scientific_name: String,
     pub common_name: Option<String>,
     pub family: Option<String>,
-    pub has_poisonous_tag: bool,
+    pub has_poisonous_claim: bool,
     /// Why this result matched — "common_name" | "scientific_name" | "synonym".
     /// A synonym match means the query hit an older/alternate Latin name; the
     /// rest of the row is still the real, current accepted species, never the
@@ -38,8 +38,8 @@ pub fn search_species(db: State<Db>, query: String) -> Result<Vec<SpeciesSummary
     let mut stmt = conn
         .prepare(
             "SELECT s.symbol, s.scientific_name, s.common_name, s.family,
-                    EXISTS(SELECT 1 FROM tags t WHERE t.species_symbol = s.symbol
-                           AND t.tag_type = 'poisonous' AND t.verified = 1) AS has_poisonous_tag,
+                    EXISTS(SELECT 1 FROM claims c WHERE c.species_symbol = s.symbol
+                           AND c.category = 'poisonous' AND c.verified = 1) AS has_poisonous_claim,
                     CASE WHEN s.common_name LIKE ?1 THEN 'common_name' ELSE 'scientific_name' END AS matched_via,
                     NULL AS matched_synonym,
                     0 AS rank
@@ -49,8 +49,8 @@ pub fn search_species(db: State<Db>, query: String) -> Result<Vec<SpeciesSummary
              UNION ALL
 
              SELECT s.symbol, s.scientific_name, s.common_name, s.family,
-                    EXISTS(SELECT 1 FROM tags t WHERE t.species_symbol = s.symbol
-                           AND t.tag_type = 'poisonous' AND t.verified = 1) AS has_poisonous_tag,
+                    EXISTS(SELECT 1 FROM claims c WHERE c.species_symbol = s.symbol
+                           AND c.category = 'poisonous' AND c.verified = 1) AS has_poisonous_claim,
                     'synonym' AS matched_via,
                     syn.scientific_name AS matched_synonym,
                     1 AS rank
@@ -70,7 +70,7 @@ pub fn search_species(db: State<Db>, query: String) -> Result<Vec<SpeciesSummary
                 scientific_name: row.get(1)?,
                 common_name: row.get(2)?,
                 family: row.get(3)?,
-                has_poisonous_tag: row.get(4)?,
+                has_poisonous_claim: row.get(4)?,
                 matched_via: row.get(5)?,
                 matched_synonym: row.get(6)?,
             })
@@ -98,14 +98,20 @@ pub struct ImageInfo {
 }
 
 #[derive(Serialize)]
-pub struct TagInfo {
+pub struct ClaimInfo {
     pub id: i64,
-    pub tag_type: String,
-    pub value: String,
+    pub category: String,
+    pub plant_part: Option<String>,
+    pub description: String,
+    pub evidence_type: String,
     pub verified: bool,
     pub source: Option<String>,
+    pub reference: Option<String>,
+    pub region: Option<String>,
     pub added_by: Option<String>,
     pub added_at: String,
+    pub verified_by: Option<String>,
+    pub verified_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -127,7 +133,7 @@ pub struct SpeciesDetail {
     pub native_status: Option<String>,
     pub source_url: Option<String>,
     pub images: Vec<ImageInfo>,
-    pub tags: Vec<TagInfo>,
+    pub claims: Vec<ClaimInfo>,
     /// Real USDA PlantCharacteristics data — present for only ~5.8% of
     /// species (confirmed, not assumed universal). An empty list means
     /// genuinely undocumented, not "nothing interesting."
@@ -158,7 +164,7 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                     native_status: row.get(7)?,
                     source_url: row.get(8)?,
                     images: Vec::new(),
-                    tags: Vec::new(),
+                    claims: Vec::new(),
                     characteristics: Vec::new(),
                     synonyms: Vec::new(),
                 })
@@ -185,22 +191,29 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    let mut tag_stmt = conn
+    let mut claim_stmt = conn
         .prepare(
-            "SELECT id, tag_type, value, verified, source, added_by, added_at
-             FROM tags WHERE species_symbol = ?1 ORDER BY verified DESC, added_at DESC",
+            "SELECT id, category, plant_part, description, evidence_type, verified,
+                    source, reference, region, added_by, added_at, verified_by, verified_at
+             FROM claims WHERE species_symbol = ?1 ORDER BY verified DESC, added_at DESC",
         )
         .map_err(|e| e.to_string())?;
-    species.tags = tag_stmt
+    species.claims = claim_stmt
         .query_map(params![species.symbol], |row| {
-            Ok(TagInfo {
+            Ok(ClaimInfo {
                 id: row.get(0)?,
-                tag_type: row.get(1)?,
-                value: row.get(2)?,
-                verified: row.get(3)?,
-                source: row.get(4)?,
-                added_by: row.get(5)?,
-                added_at: row.get(6)?,
+                category: row.get(1)?,
+                plant_part: row.get(2)?,
+                description: row.get(3)?,
+                evidence_type: row.get(4)?,
+                verified: row.get(5)?,
+                source: row.get(6)?,
+                reference: row.get(7)?,
+                region: row.get(8)?,
+                added_by: row.get(9)?,
+                added_at: row.get(10)?,
+                verified_by: row.get(11)?,
+                verified_at: row.get(12)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -240,57 +253,92 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
     Ok(species)
 }
 
-const VALID_TAG_TYPES: [&str; 4] = ["medical", "poisonous", "edible", "useful"];
+const VALID_CATEGORIES: [&str; 4] = ["medical", "poisonous", "edible", "useful"];
+const VALID_EVIDENCE_TYPES: [&str; 6] = [
+    "traditional",
+    "laboratory",
+    "animal_study",
+    "human_clinical",
+    "regulatory",
+    "unspecified",
+];
 
 /// Always inserts unverified (verified = 0). This is the one rule in the
-/// whole app that must never bend: adding a tag is never, by itself,
-/// enough to make a claim visible as confirmed.
+/// whole app that must never bend: adding a claim is never, by itself,
+/// enough to make it appear confirmed.
 #[tauri::command]
-pub fn add_tag(
+#[allow(clippy::too_many_arguments)]
+pub fn add_claim(
     db: State<Db>,
     symbol: String,
-    tag_type: String,
-    value: String,
+    category: String,
+    description: String,
+    plant_part: Option<String>,
+    evidence_type: Option<String>,
     source: Option<String>,
+    reference: Option<String>,
+    region: Option<String>,
     added_by: Option<String>,
 ) -> Result<i64, String> {
-    if !VALID_TAG_TYPES.contains(&tag_type.as_str()) {
+    if !VALID_CATEGORIES.contains(&category.as_str()) {
         return Err(format!(
-            "invalid tag_type '{tag_type}', must be one of {VALID_TAG_TYPES:?}"
+            "invalid category '{category}', must be one of {VALID_CATEGORIES:?}"
         ));
     }
-    if value.trim().is_empty() {
-        return Err("tag value can't be empty".into());
+    if description.trim().is_empty() {
+        return Err("claim description can't be empty".into());
+    }
+    let evidence_type = evidence_type.unwrap_or_else(|| "unspecified".to_string());
+    if !VALID_EVIDENCE_TYPES.contains(&evidence_type.as_str()) {
+        return Err(format!(
+            "invalid evidence_type '{evidence_type}', must be one of {VALID_EVIDENCE_TYPES:?}"
+        ));
     }
 
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO tags (species_symbol, tag_type, value, verified, source, added_by)
-         VALUES (?1, ?2, ?3, 0, ?4, ?5)",
-        params![symbol, tag_type, value.trim(), source, added_by],
+        "INSERT INTO claims
+            (species_symbol, category, plant_part, description, evidence_type,
+             verified, source, reference, region, added_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7, ?8, ?9)",
+        params![
+            symbol,
+            category,
+            plant_part,
+            description.trim(),
+            evidence_type,
+            source,
+            reference,
+            region,
+            added_by
+        ],
     )
     .map_err(|e| e.to_string())?;
     Ok(conn.last_insert_rowid())
 }
 
-/// The only path by which a tag becomes verified — a separate, explicit
-/// call, never a side effect of add_tag or an edit.
+/// The only path by which a claim becomes verified — a separate, explicit
+/// call, never a side effect of add_claim or an edit.
 #[tauri::command]
-pub fn verify_tag(db: State<Db>, tag_id: i64) -> Result<(), String> {
+pub fn verify_claim(db: State<Db>, claim_id: i64, verified_by: Option<String>) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let changed = conn
-        .execute("UPDATE tags SET verified = 1 WHERE id = ?1", params![tag_id])
+        .execute(
+            "UPDATE claims SET verified = 1, verified_by = ?2, verified_at = datetime('now')
+             WHERE id = ?1",
+            params![claim_id, verified_by],
+        )
         .map_err(|e| e.to_string())?;
     if changed == 0 {
-        return Err(format!("no tag with id {tag_id}"));
+        return Err(format!("no claim with id {claim_id}"));
     }
     Ok(())
 }
 
 #[tauri::command]
-pub fn delete_tag(db: State<Db>, tag_id: i64) -> Result<(), String> {
+pub fn delete_claim(db: State<Db>, claim_id: i64) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM tags WHERE id = ?1", params![tag_id])
+    conn.execute("DELETE FROM claims WHERE id = ?1", params![claim_id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }

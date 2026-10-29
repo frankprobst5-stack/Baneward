@@ -8,10 +8,23 @@
 //! updates instead of being silently overwritten by a newer bundled
 //! resource.
 //!
-//! Safety rule enforced here, not just in the UI (see README.md): a tag
+//! Safety rule enforced here, not just in the UI (see README.md): a claim
 //! is always inserted with `verified = 0`. The only way one becomes
-//! verified is the separate `verify_tag` command — a deliberate human
+//! verified is the separate `verify_claim` command — a deliberate human
 //! action, never a side effect of adding one.
+//!
+//! `claims` (redesigned 2026-10-29, was the simpler `tags` table) keeps
+//! two real axes separate rather than conflating them, per real feedback
+//! that merging "what domain is this about" with "how do we know it" was
+//! a mistake: `category` is what the claim is about (medical/poisonous/
+//! edible/useful — unchanged from `tags`, Baneward's own red-alert logic
+//! still keys off this), `evidence_type` is how the claim was arrived at
+//! (traditional use, laboratory finding, animal study, human clinical
+//! trial, regulatory source, or unspecified). A chemical's reported
+//! toxicity in a lab assay is not the same kind of claim as a documented
+//! human poisoning case, even if both end up tagged `category='poisonous'`
+//! — `evidence_type` is what lets Baneward (and a reader) tell them apart
+//! without losing the category-based red-alert filtering.
 
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -78,20 +91,31 @@ fn ensure_schema(conn: &Connection) {
             photographer TEXT,
             institution TEXT
         );
-        CREATE TABLE IF NOT EXISTS tags (
+        -- Replaces the old `tags` table (migrated by
+        -- data/migrate_claims_schema.py, not recreated from scratch --
+        -- this CREATE only matters for a dev db built from nothing).
+        CREATE TABLE IF NOT EXISTS claims (
             id INTEGER PRIMARY KEY,
             species_symbol TEXT NOT NULL REFERENCES species(symbol),
-            tag_type TEXT NOT NULL CHECK(tag_type IN ('medical','poisonous','edible','useful')),
-            value TEXT NOT NULL,
+            category TEXT NOT NULL CHECK(category IN ('medical','poisonous','edible','useful')),
+            plant_part TEXT,
+            description TEXT NOT NULL,
+            evidence_type TEXT NOT NULL DEFAULT 'unspecified'
+                CHECK(evidence_type IN ('traditional','laboratory','animal_study','human_clinical','regulatory','unspecified')),
             verified INTEGER NOT NULL DEFAULT 0,
             source TEXT,
+            reference TEXT,
+            region TEXT,
             added_by TEXT,
-            added_at TEXT DEFAULT CURRENT_TIMESTAMP
+            added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            verified_by TEXT,
+            verified_at TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_species_sciname ON species(scientific_name);
         CREATE INDEX IF NOT EXISTS idx_species_common ON species(common_name);
         CREATE INDEX IF NOT EXISTS idx_images_species ON images(species_symbol);
-        CREATE INDEX IF NOT EXISTS idx_tags_species ON tags(species_symbol);
+        CREATE INDEX IF NOT EXISTS idx_claims_species ON claims(species_symbol);
+        CREATE INDEX IF NOT EXISTS idx_claims_category ON claims(category);
 
         -- Real scientific-name synonyms (data/ingest_characteristics_and_synonyms.py)
         -- so an older/alternate Latin name still finds the current accepted species.

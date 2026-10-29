@@ -7,7 +7,7 @@ interface SpeciesSummary {
   scientific_name: string;
   common_name: string | null;
   family: string | null;
-  has_poisonous_tag: boolean;
+  has_poisonous_claim: boolean;
   matched_via: "common_name" | "scientific_name" | "synonym";
   matched_synonym: string | null;
 }
@@ -19,14 +19,20 @@ interface ImageInfo {
   institution: string | null;
 }
 
-interface TagInfo {
+interface ClaimInfo {
   id: number;
-  tag_type: string;
-  value: string;
+  category: string;
+  plant_part: string | null;
+  description: string;
+  evidence_type: string;
   verified: boolean;
   source: string | null;
+  reference: string | null;
+  region: string | null;
   added_by: string | null;
   added_at: string;
+  verified_by: string | null;
+  verified_at: string | null;
 }
 
 interface CharacteristicInfo {
@@ -46,21 +52,42 @@ interface SpeciesDetail {
   native_status: string | null;
   source_url: string | null;
   images: ImageInfo[];
-  tags: TagInfo[];
+  claims: ClaimInfo[];
   characteristics: CharacteristicInfo[];
   synonyms: string[];
 }
 
-const TAG_TYPES = ["poisonous", "edible", "medical", "useful"] as const;
+const CATEGORIES = ["poisonous", "edible", "medical", "useful"] as const;
+const EVIDENCE_TYPES = [
+  "unspecified",
+  "traditional",
+  "laboratory",
+  "animal_study",
+  "human_clinical",
+  "regulatory",
+] as const;
+
+const EVIDENCE_LABELS: Record<string, string> = {
+  unspecified: "Unspecified",
+  traditional: "Traditional/ethnobotanical use",
+  laboratory: "Laboratory finding",
+  animal_study: "Animal study",
+  human_clinical: "Human clinical evidence",
+  regulatory: "Regulatory/government source",
+};
 
 function App() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SpeciesSummary[]>([]);
   const [selected, setSelected] = useState<SpeciesDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [tagType, setTagType] = useState<(typeof TAG_TYPES)[number]>("poisonous");
-  const [tagValue, setTagValue] = useState("");
-  const [tagSource, setTagSource] = useState("");
+  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("poisonous");
+  const [description, setDescription] = useState("");
+  const [plantPart, setPlantPart] = useState("");
+  const [evidenceType, setEvidenceType] = useState<(typeof EVIDENCE_TYPES)[number]>("unspecified");
+  const [source, setSource] = useState("");
+  const [reference, setReference] = useState("");
+  const [region, setRegion] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -95,36 +122,47 @@ function App() {
     if (selected) await openSpecies(selected.symbol);
   }
 
-  async function submitTag(e: React.FormEvent) {
+  async function submitClaim(e: React.FormEvent) {
     e.preventDefault();
-    if (!selected || !tagValue.trim()) return;
+    if (!selected || !description.trim()) return;
     try {
-      await invoke("add_tag", {
+      await invoke("add_claim", {
         symbol: selected.symbol,
-        tagType,
-        value: tagValue.trim(),
-        source: tagSource.trim() || null,
+        category,
+        description: description.trim(),
+        plantPart: plantPart.trim() || null,
+        evidenceType,
+        source: source.trim() || null,
+        reference: reference.trim() || null,
+        region: region.trim() || null,
         addedBy: "local-user",
       });
-      setTagValue("");
-      setTagSource("");
+      setDescription("");
+      setPlantPart("");
+      setSource("");
+      setReference("");
+      setRegion("");
       await refreshSelected();
     } catch (e) {
-      console.error("add_tag failed", e);
+      console.error("add_claim failed", e);
     }
   }
 
-  async function verify(tagId: number) {
-    await invoke("verify_tag", { tagId });
+  async function verify(claimId: number) {
+    await invoke("verify_claim", { claimId, verifiedBy: "local-user" });
     await refreshSelected();
   }
 
-  async function removeTag(tagId: number) {
-    await invoke("delete_tag", { tagId });
+  async function removeClaim(claimId: number) {
+    await invoke("delete_claim", { claimId });
     await refreshSelected();
   }
 
   const usableImages = selected?.images.filter((i) => i.is_public_domain) ?? [];
+  const claimsByCategory = (selected?.claims ?? []).reduce<Record<string, ClaimInfo[]>>((acc, c) => {
+    (acc[c.category] ??= []).push(c);
+    return acc;
+  }, {});
 
   return (
     <main className="shell">
@@ -159,7 +197,7 @@ function App() {
                     matched via old name <i>{r.matched_synonym}</i>
                   </span>
                 )}
-                {r.has_poisonous_tag && <span className="pill pill-danger">⚠ POISONOUS</span>}
+                {r.has_poisonous_claim && <span className="pill pill-danger">⚠ POISONOUS</span>}
               </li>
             ))}
             {query.trim().length >= 2 && results.length === 0 && (
@@ -222,7 +260,7 @@ function App() {
                     Real USDA PLANTS data — documented for only about 1 in 17 species, so
                     this section is empty for most. Agricultural/conservation-use
                     judgments (e.g. "Toxicity"), not a verified human-safety claim —
-                    treat alongside the Tags section below, not instead of it.
+                    treat alongside Claims below, not instead of it.
                   </p>
                   {Object.entries(
                     selected.characteristics.reduce<Record<string, CharacteristicInfo[]>>((acc, c) => {
@@ -230,9 +268,9 @@ function App() {
                       (acc[cat] ??= []).push(c);
                       return acc;
                     }, {})
-                  ).map(([category, items]) => (
-                    <div key={category} className="char-group">
-                      <h4>{category}</h4>
+                  ).map(([cat, items]) => (
+                    <div key={cat} className="char-group">
+                      <h4>{cat}</h4>
                       <dl className="facts">
                         {items.map((c) => (
                           <>
@@ -264,62 +302,109 @@ function App() {
                 </p>
               )}
 
-              <section className="tags-section">
-                <h3>Tags</h3>
-                {selected.tags.length === 0 && (
-                  <p className="no-tags">
+              <section className="claims-section">
+                <h3>Claims</h3>
+                {selected.claims.length === 0 && (
+                  <p className="no-claims">
                     Not yet classified. No claim — medical, poisonous, edible, or useful — has
                     been entered for this species.
                   </p>
                 )}
-                <ul className="tag-list">
-                  {selected.tags.map((t) => (
-                    <li key={t.id} className={`tag tag-${t.tag_type} ${t.verified ? "verified" : "unverified"}`}>
-                      <div className="tag-head">
-                        <span className="tag-type">{t.tag_type.toUpperCase()}</span>
-                        <span className={`tag-status ${t.verified ? "status-verified" : "status-unverified"}`}>
-                          {t.verified ? "✓ Verified" : "⚠ Unverified"}
-                        </span>
-                      </div>
-                      <p className="tag-value">{t.value}</p>
-                      {t.source && <p className="tag-source">Source: {t.source}</p>}
-                      <div className="tag-actions">
-                        {!t.verified && (
-                          <button onClick={() => verify(t.id)}>Mark verified</button>
-                        )}
-                        <button className="danger" onClick={() => removeTag(t.id)}>
-                          Remove
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
 
-                <form className="add-tag-form" onSubmit={submitTag}>
-                  <h4>Add a tag</h4>
+                {CATEGORIES.filter((cat) => claimsByCategory[cat]?.length).map((cat) => {
+                  const items = claimsByCategory[cat];
+                  const verifiedCount = items.filter((c) => c.verified).length;
+                  return (
+                    <details key={cat} className={`claim-group claim-group-${cat}`} open={items.length <= 5}>
+                      <summary>
+                        {cat.toUpperCase()} — {items.length} claim{items.length !== 1 ? "s" : ""}
+                        {verifiedCount > 0 && <span className="verified-count"> ({verifiedCount} verified)</span>}
+                      </summary>
+                      <ul className="claim-list">
+                        {items.map((c) => (
+                          <li key={c.id} className={`claim ${c.verified ? "verified" : "unverified"}`}>
+                            <div className="claim-head">
+                              <span className="claim-evidence">{EVIDENCE_LABELS[c.evidence_type] ?? c.evidence_type}</span>
+                              <span className={`claim-status ${c.verified ? "status-verified" : "status-unverified"}`}>
+                                {c.verified ? "✓ Verified" : "⚠ Unverified"}
+                              </span>
+                            </div>
+                            <p className="claim-description">{c.description}</p>
+                            <p className="claim-meta">
+                              {c.plant_part && <span>Part: {c.plant_part}</span>}
+                              {c.region && <span>Region: {c.region}</span>}
+                            </p>
+                            {(c.source || c.reference) && (
+                              <p className="claim-source">
+                                {c.source}
+                                {c.source && c.reference && " — "}
+                                {c.reference}
+                              </p>
+                            )}
+                            <div className="claim-actions">
+                              {!c.verified && <button onClick={() => verify(c.id)}>Mark verified</button>}
+                              <button className="danger" onClick={() => removeClaim(c.id)}>
+                                Remove
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  );
+                })}
+
+                <form className="add-claim-form" onSubmit={submitClaim}>
+                  <h4>Add a claim</h4>
                   <p className="form-note">
-                    New tags start unverified. They won't show as confirmed until someone
+                    New claims start unverified. They won't show as confirmed until someone
                     explicitly marks them verified against a real source.
                   </p>
-                  <select value={tagType} onChange={(e) => setTagType(e.target.value as typeof tagType)}>
-                    {TAG_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="form-row">
+                    <select value={category} onChange={(e) => setCategory(e.target.value as typeof category)}>
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <select value={evidenceType} onChange={(e) => setEvidenceType(e.target.value as typeof evidenceType)}>
+                      {EVIDENCE_TYPES.map((e) => (
+                        <option key={e} value={e}>
+                          {EVIDENCE_LABELS[e]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <textarea
                     placeholder="What's the claim, and why?"
-                    value={tagValue}
-                    onChange={(e) => setTagValue(e.target.value)}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                   />
+                  <div className="form-row">
+                    <input
+                      placeholder="Plant part (optional — root, leaf, berry…)"
+                      value={plantPart}
+                      onChange={(e) => setPlantPart(e.target.value)}
+                    />
+                    <input
+                      placeholder="Region (optional)"
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                    />
+                  </div>
                   <input
                     placeholder="Source (optional, but a real one helps verification later)"
-                    value={tagSource}
-                    onChange={(e) => setTagSource(e.target.value)}
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
                   />
-                  <button type="submit" disabled={!tagValue.trim()}>
-                    Add unverified tag
+                  <input
+                    placeholder="Reference / citation (optional)"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                  />
+                  <button type="submit" disabled={!description.trim()}>
+                    Add unverified claim
                   </button>
                 </form>
               </section>

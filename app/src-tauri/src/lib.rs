@@ -43,9 +43,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::search_species,
             commands::get_species,
-            commands::add_tag,
-            commands::verify_tag,
-            commands::delete_tag,
+            commands::add_claim,
+            commands::verify_claim,
+            commands::delete_claim,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

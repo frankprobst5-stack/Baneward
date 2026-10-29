@@ -197,6 +197,50 @@ de-linked. Same "legitimately public domain but not currently accessible" patter
 hit once with the ARS Poisonous Plants Checklist in Phase 0. A Wayback Machine snapshot
 might still recover it — a real next step, not done here.
 
+## Phase 1.6 — Richer claims schema + real Dr. Duke ethnobotanical data ✅ done 2026-10-29
+
+A second installment of the same outside review proposed a real architectural fix: don't
+conflate "what domain is a claim about" with "how do we know it" — a chemical's reported
+toxicity in a lab assay isn't the same kind of evidence as a documented human poisoning
+case, even if both are about the same `poisonous` category. It also flagged a second real
+data source worth checking: Dr. Duke's Phytochemical and Ethnobotanical Database.
+
+**Verified before building anything** (same discipline as every other source this project
+has touched): fetched the real USDA ARS listing on data.gov directly — **CC0**, confirmed
+from the page itself, no ambiguity. Downloaded the real archive
+(`Duke-Source-CSV.zip`, 16 real linked CSV tables, 40MB) and tested match rate before
+committing to an ingest: **62.2% of its 82,873 `ETHNOBOT` rows (51,579 real records) match
+a species already in our database** — spot-checked against species we know (*Asclepias
+syriaca*/common milkweed: real documented Pamunkey traditional use for Cancer, plus
+Asthma, Bronchitis, Cathartic, Cough, each with a real bibliographic reference).
+
+**Real schema redesign, `tags` → `claims`** (`app/src-tauri/src/db.rs`,
+`data/migrate_claims_schema.py`): kept the existing `category` axis (medical / poisonous /
+edible / useful — Baneward's own red-alert logic still keys off this, unchanged) and added
+the real missing axis, `evidence_type` (traditional / laboratory / animal_study /
+human_clinical / regulatory / unspecified), plus `plant_part`, `reference`, and `region`
+fields Duke's real data actually has. The one existing demo claim (water hemlock) migrated
+over intact, still verified, nothing lost.
+
+**Real ingest, deliberately scoped to `ETHNOBOT` only**
+(`data/ingest_duke_ethnobotany.py`) — the one Duke table that's directly species-level
+(genus/species columns) without needing to resolve through Duke's own internal plant-ID
+numbering first. The chemical-level tables (`ACTIVITIES`, `AGGREGAC`, `CHEMICALS`,
+`CHEM_MEANS`, `FARMACY_NEW`, `DOSAGE`) need that resolution step through `FNFTAX.csv` and
+are real, scoped future work, not done here. Every inserted claim: `category='medical'`,
+`evidence_type='traditional'` (explicitly not clinical evidence), region and reference
+preserved from Duke's own `COUNTRY`/`REFERENCE` columns, **unverified**, same as every
+other claim regardless of source — CC0 government data doesn't exempt it from the same
+human review before it counts as confirmed.
+
+**Real final numbers**: 51,579 new claims inserted (51,580 total with the original demo
+claim), all unverified. Rust backend (`commands.rs`: `add_claim`/`verify_claim`/
+`delete_claim`, richer `ClaimInfo`) and the UI (grouped-by-category, collapsible per
+category since one species — castor bean — has 202 real claims on its own) both updated
+and verified against the real running app's live database, not just the schema — checked
+first that no new claims had been added since the last session before migrating the live
+copy, same care as Phase 1.5's update.
+
 ## Phase 2 — Local AI search integration
 
 Wire up search/explain against Citadel's existing Off-Grid AI (Ollama) infrastructure,
