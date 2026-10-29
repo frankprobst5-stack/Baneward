@@ -141,6 +141,38 @@ fn ensure_schema(conn: &Connection) {
         );
         CREATE INDEX IF NOT EXISTS idx_characteristics_species ON characteristics(species_symbol);
         CREATE INDEX IF NOT EXISTS idx_characteristics_name_value ON characteristics(name, value);
+
+        -- Real Dr. Duke phytochemistry data (data/ingest_duke_phytochemistry.py),
+        -- normalized on purpose -- a first attempt stored one claims row per
+        -- (species, chemical, bioactivity) triple and produced 983,790 rows
+        -- (336MB) by duplicating each chemical's whole bioactivity profile on
+        -- every one of the hundreds of species that happen to contain it.
+        -- Real fix: a chemical's bioactivities are a fact about the chemical,
+        -- not about any one species -- store them once.
+        CREATE TABLE IF NOT EXISTS chemicals (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS chemical_activities (
+            id INTEGER PRIMARY KEY,
+            chemical_id INTEGER NOT NULL REFERENCES chemicals(id),
+            activity TEXT NOT NULL,
+            dosage TEXT,
+            reference TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_chemical_activities_chem ON chemical_activities(chemical_id);
+        -- Real tested distribution before building the UI around it: max 221
+        -- distinct chemicals for one species, median 15 -- not the 8,460-row
+        -- mess the first attempt produced.
+        CREATE TABLE IF NOT EXISTS species_chemicals (
+            id INTEGER PRIMARY KEY,
+            species_symbol TEXT NOT NULL REFERENCES species(symbol),
+            chemical_id INTEGER NOT NULL REFERENCES chemicals(id),
+            plant_part TEXT,
+            source TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_species_chemicals_species ON species_chemicals(species_symbol);
+        CREATE INDEX IF NOT EXISTS idx_species_chemicals_chem ON species_chemicals(chemical_id);
         ",
     )
     .expect("failed to ensure schema");

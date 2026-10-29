@@ -122,6 +122,26 @@ pub struct CharacteristicInfo {
 }
 
 #[derive(Serialize)]
+pub struct ActivityInfo {
+    pub activity: String,
+    pub dosage: Option<String>,
+    pub reference: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ChemicalInfo {
+    pub name: String,
+    pub plant_part: Option<String>,
+    /// Real documented bioactivities (Dr. Duke's AGGREGAC) — stored once
+    /// per chemical, not duplicated per species (see
+    /// data/ingest_duke_phytochemistry.py's own notes on why the first
+    /// attempt at this produced 983,790 rows instead of ~19,000). Raw
+    /// chemical/laboratory findings, not a safety or therapeutic claim —
+    /// deliberately kept separate from the `claims` table.
+    pub activities: Vec<ActivityInfo>,
+}
+
+#[derive(Serialize)]
 pub struct SpeciesDetail {
     pub symbol: String,
     pub scientific_name: String,
@@ -140,6 +160,9 @@ pub struct SpeciesDetail {
     pub characteristics: Vec<CharacteristicInfo>,
     /// Older/alternate scientific names that resolve to this species.
     pub synonyms: Vec<String>,
+    /// Real documented chemicals (Dr. Duke), present for ~3.9% of species
+    /// (1,371 of 35,326 resolve through Duke's own taxonomy).
+    pub chemicals: Vec<ChemicalInfo>,
 }
 
 #[tauri::command]
@@ -167,6 +190,7 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                     claims: Vec::new(),
                     characteristics: Vec::new(),
                     synonyms: Vec::new(),
+                    chemicals: Vec::new(),
                 })
             },
         )
@@ -249,6 +273,57 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+
+    // One flat query (chemical x activity), grouped into ChemicalInfo in
+    // Rust -- cheaper than N+1 queries per chemical, and at a real max of
+    // 221 distinct chemicals for one species this is a small result set.
+    let mut chem_stmt = conn
+        .prepare(
+            "SELECT ch.name, sc.plant_part, ca.activity, ca.dosage, ca.reference
+             FROM species_chemicals sc
+             JOIN chemicals ch ON ch.id = sc.chemical_id
+             LEFT JOIN chemical_activities ca ON ca.chemical_id = ch.id
+             WHERE sc.species_symbol = ?1
+             ORDER BY ch.name, ca.activity",
+        )
+        .map_err(|e| e.to_string())?;
+    let chem_rows = chem_stmt
+        .query_map(params![species.symbol], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut chem_order: Vec<String> = Vec::new();
+    let mut chem_map: std::collections::HashMap<String, ChemicalInfo> = std::collections::HashMap::new();
+    for (name, plant_part, activity, dosage, reference) in chem_rows {
+        let entry = chem_map.entry(name.clone()).or_insert_with(|| {
+            chem_order.push(name.clone());
+            ChemicalInfo {
+                name,
+                plant_part,
+                activities: Vec::new(),
+            }
+        });
+        if let Some(activity) = activity {
+            entry.activities.push(ActivityInfo {
+                activity,
+                dosage,
+                reference,
+            });
+        }
+    }
+    species.chemicals = chem_order
+        .into_iter()
+        .map(|name| chem_map.remove(&name).unwrap())
+        .collect();
 
     Ok(species)
 }

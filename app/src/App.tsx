@@ -41,6 +41,18 @@ interface CharacteristicInfo {
   category: string | null;
 }
 
+interface ActivityInfo {
+  activity: string;
+  dosage: string | null;
+  reference: string | null;
+}
+
+interface ChemicalInfo {
+  name: string;
+  plant_part: string | null;
+  activities: ActivityInfo[];
+}
+
 interface SpeciesDetail {
   symbol: string;
   scientific_name: string;
@@ -53,6 +65,7 @@ interface SpeciesDetail {
   source_url: string | null;
   images: ImageInfo[];
   claims: ClaimInfo[];
+  chemicals: ChemicalInfo[];
   characteristics: CharacteristicInfo[];
   synonyms: string[];
 }
@@ -284,6 +297,42 @@ function App() {
                 </section>
               ) : (
                 <p className="no-images">No USDA characteristics documented for this species.</p>
+              )}
+
+              {selected.chemicals.length > 0 && (
+                <section className="chemistry-section">
+                  <h3>Chemistry</h3>
+                  <p className="form-note">
+                    Real documented chemicals (Dr. Duke's Phytochemical and Ethnobotanical
+                    Databases, USDA ARS) — present for only about 1 in 26 species. Raw
+                    laboratory/literature findings about the chemical itself, not a safety
+                    or therapeutic claim about this plant — see Claims below for that.
+                  </p>
+                  {selected.chemicals.map((c) => (
+                    <details key={c.name} className="chem-group">
+                      <summary>
+                        {c.name}
+                        {c.plant_part && <span className="chem-part"> ({c.plant_part})</span>}
+                        {c.activities.length > 0 && (
+                          <span className="chem-count"> — {c.activities.length} documented bioactivit{c.activities.length !== 1 ? "ies" : "y"}</span>
+                        )}
+                      </summary>
+                      {c.activities.length > 0 ? (
+                        <ul className="activity-list">
+                          {c.activities.map((a, i) => (
+                            <li key={i}>
+                              <span className="activity-name">{a.activity}</span>
+                              {a.dosage && <span className="activity-dosage"> {a.dosage}</span>}
+                              {a.reference && <span className="activity-ref"> — {a.reference}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="no-claims">No specific bioactivity documented beyond presence.</p>
+                      )}
+                    </details>
+                  ))}
+                </section>
               )}
 
               {usableImages.length > 0 ? (
