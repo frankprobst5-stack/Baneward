@@ -98,13 +98,21 @@ pub struct ImageInfo {
     pub photographer: Option<String>,
     pub institution: Option<String>,
     /// 'usda_plants' for everything from the original ingest, 'user_upload'
-    /// for a photo someone added through the app.
+    /// for a photo someone added through the app, 'inaturalist' for a
+    /// cached community (research-grade, CC0/CC-BY) photo.
     pub source: String,
-    /// User uploads start false, same rule as a claim -- see `add_user_image`.
+    /// User uploads and iNaturalist photos start false, same rule as a
+    /// claim -- see `add_user_image` and data/ingest_inaturalist_images.py.
     /// USDA rows are true by default (institutional data, not a new claim).
     pub verified: bool,
     pub added_by: Option<String>,
     pub added_at: Option<String>,
+    /// Set when the actual bytes are cached in the db (iNaturalist images;
+    /// a future user-upload migration could use this too) -- a data URI
+    /// the frontend can use directly, no live network fetch needed. None
+    /// for USDA's plain-URL rows and for user uploads (which still go
+    /// through `read_image_bytes` against their local file).
+    pub data_base64: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -209,16 +217,30 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
     let mut img_stmt = conn
         .prepare(
             "SELECT id, url, is_public_domain, photographer, institution,
-                    source, verified, added_by, added_at
+                    source, verified, added_by, added_at, data
              FROM images WHERE species_symbol = ?1
              ORDER BY is_public_domain DESC, added_at DESC",
         )
         .map_err(|e| e.to_string())?;
     species.images = img_stmt
         .query_map(params![species.symbol], |row| {
+            let url: String = row.get(1)?;
+            let blob: Option<Vec<u8>> = row.get(9)?;
+            let ext = std::path::Path::new(&url)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_lowercase())
+                .unwrap_or_default();
+            let data_base64 = blob.map(|bytes| {
+                format!(
+                    "data:{};base64,{}",
+                    image_mime_type(&ext),
+                    base64::engine::general_purpose::STANDARD.encode(bytes)
+                )
+            });
             Ok(ImageInfo {
                 id: row.get(0)?,
-                url: row.get(1)?,
+                url,
                 is_public_domain: row.get(2)?,
                 photographer: row.get(3)?,
                 institution: row.get(4)?,
@@ -226,6 +248,7 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                 verified: row.get(6)?,
                 added_by: row.get(7)?,
                 added_at: row.get(8)?,
+                data_base64,
             })
         })
         .map_err(|e| e.to_string())?
@@ -517,10 +540,11 @@ pub fn add_user_image(
     Ok(conn.last_insert_rowid())
 }
 
-/// The only path by which a user-uploaded photo becomes verified -- a
-/// separate, deliberate call, same pattern as `verify_claim`. Scoped to
-/// user uploads only; USDA's own images are already institutionally
-/// sourced and don't go through this.
+/// The only path by which a non-institutional photo becomes verified -- a
+/// separate, deliberate call, same pattern as `verify_claim`. Covers both
+/// a user's own upload and a cached iNaturalist photo (a household member
+/// reviewing a research-grade community ID and confirming it); USDA's own
+/// images are already institutionally sourced and never go through this.
 #[tauri::command]
 pub fn verify_user_image(
     db: State<Db>,
@@ -531,35 +555,40 @@ pub fn verify_user_image(
     let changed = conn
         .execute(
             "UPDATE images SET verified = 1, verified_by = ?2, verified_at = datetime('now')
-             WHERE id = ?1 AND source = 'user_upload'",
+             WHERE id = ?1 AND source IN ('user_upload', 'inaturalist')",
             params![image_id, verified_by],
         )
         .map_err(|e| e.to_string())?;
     if changed == 0 {
-        return Err(format!("no user-uploaded image with id {image_id}"));
+        return Err(format!("no reviewable image with id {image_id}"));
     }
     Ok(())
 }
 
-/// Only ever deletes a user's own upload, never a bundled USDA image -- the
-/// `source = 'user_upload'` clause is the real enforcement, not just a
-/// hidden button in the UI.
+/// Only ever deletes a user's own upload or a cached iNaturalist photo,
+/// never a bundled USDA image -- the `source IN (...)` clause is the real
+/// enforcement, not just a hidden button in the UI. A user upload's `url`
+/// is a real local file path and gets cleaned up; an iNaturalist row's
+/// `url` is just the original source link (its bytes live in `data`,
+/// removed with the row itself), so there's no local file to unlink.
 #[tauri::command]
 pub fn delete_user_image(db: State<Db>, image_id: i64) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let path: String = conn
         .query_row(
-            "SELECT url FROM images WHERE id = ?1 AND source = 'user_upload'",
+            "SELECT url FROM images WHERE id = ?1 AND source IN ('user_upload', 'inaturalist')",
             params![image_id],
             |row| row.get(0),
         )
-        .map_err(|_| format!("no user-uploaded image with id {image_id}"))?;
+        .map_err(|_| format!("no reviewable image with id {image_id}"))?;
     conn.execute(
-        "DELETE FROM images WHERE id = ?1 AND source = 'user_upload'",
+        "DELETE FROM images WHERE id = ?1 AND source IN ('user_upload', 'inaturalist')",
         params![image_id],
     )
     .map_err(|e| e.to_string())?;
-    let _ = std::fs::remove_file(path); // best-effort cleanup; the db row is the source of truth
+    if !path.starts_with("http") {
+        let _ = std::fs::remove_file(path); // best-effort cleanup; the db row is the source of truth
+    }
     Ok(())
 }
 

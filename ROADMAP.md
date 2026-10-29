@@ -10,11 +10,12 @@ guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0
 done**: all 35,326 real US species are enriched and sitting in a real local database, zero
 failures, verified against live sources throughout — not assumed. Two of the three
 originally-planned sources turned out not to hold up on direct verification; the plan was
-corrected in response, not papered over. Phases 1 through 1.8 are also done: a real
+corrected in response, not papered over. Phases 1 through 1.9 are also done: a real
 standalone Tauri app (matching WayStation's stack), synonym/characteristic search data,
 51,580 real ethnobotanical claims, 3,001 real documented chemicals with their lab
-bioactivities, and now a real "add your own photo" feature — all unverified by default,
-same rule throughout, now including a user's own photo. See below for the full detail.
+bioactivities, a real "add your own photo" feature, and a prototyped iNaturalist image
+pipeline (64 real cached community photos, full-scale decision pending) — all unverified
+by default, same rule throughout. See below for the full detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -385,6 +386,51 @@ updated `get_species` query, verify, delete, including the ownership-guard case)
 directly against a scratch copy of the real database — not just trusted because Rust
 compiled. Schema migrated on the master db, the live running app's db, and the bundled
 resource, same three-step process as every prior phase.
+
+## Phase 1.9 — The real iNaturalist image pipeline, prototyped on a bounded batch ✅ prototype done 2026-10-29
+
+Phase 1.8 validated this was worth building (80% hit rate on a 50-species live-API test)
+but didn't build it. This phase does — bounded to a real 100-species prototype first,
+same discipline as every other source here (`build_phase0.py` before `ingest_full.py`):
+prove the real approach end-to-end before deciding whether to scale to all 27,650
+zero-image species.
+
+**Real result, `data/ingest_inaturalist_images.py` against 100 zero-image species**:
+**64 found and cached** (CC0/CC-BY, research-grade, exact-taxon-name-matched — a stricter,
+more rigorous check than Phase 1.8's quick estimate, since this requires an actual
+successful download, not just a nonzero search count). 36 had no eligible match.
+
+**Real design decision, not just storing another live URL**: a community-sourced photo is
+pointless for a grid-down app if it still needs the internet to render — same complaint
+this project has already logged against USDA's own image URLs. So the actual bytes get
+cached directly in a new `images.data BLOB` column (`data/migrate_images_schema.py`,
+extended) rather than inventing a new file-bundling mechanism; the frontend gets a ready
+data URI straight from `get_species` (`data_base64` field, `commands.rs`), reusing the
+same base64-over-invoke approach Phase 1.8 already built for user uploads. Real measured
+size: 64 images, 7.9MB total, ~124KB average — notably larger than USDA's own ~34KB
+average (a different source, a different average, not interchangeable numbers).
+
+**Trust tier kept honest, per this project's own "identification confidence is not safety
+confidence" rule**: a research-grade iNaturalist ID means at least two independent people
+agreed — a real signal, stronger than a single unreviewed upload, but still a community
+identification, not USDA's own institutional tie. New "Community Photos (iNaturalist)"
+section, visually and structurally distinct from both the USDA grid and "Your Photos" —
+inserted as `source='inaturalist'`, `verified=0`, same unverified-by-default rule as
+everything that isn't USDA's own data. `verify_user_image`/`delete_user_image` were
+broadened from `source = 'user_upload'` to `source IN ('user_upload', 'inaturalist')` so a
+household member can review and confirm (or remove) a community photo the same way they
+review a claim — the guard still fully blocks either command from touching a `usda_plants`
+row, re-verified directly against a scratch database after the change, not assumed.
+
+**Real scaling math, not done yet**: at this run's real hit rate and average size, all
+27,650 zero-image species would mean roughly **17,700 images, ~2.2GB** — a real, substantial
+jump from the 67MB database today, and nowhere near the ~600MB estimate logged against
+USDA's own smaller images (different average size, not the same number). iNaturalist's own
+rate-limit guidance (~1 req/sec) also means resolving all 27,650 through this live
+per-species API would take on the order of 7-8 hours sequential; a real full-scale pass
+should likely use the bulk Open Data metadata dump instead (confirmed public and real in
+Phase 1.8's own verification) rather than one API call per species. Not attempted here —
+a real decision for Frank given the size jump, not something to default into.
 
 ## v2 — Discovery & UX pass (planned, not started)
 

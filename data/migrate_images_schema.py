@@ -8,7 +8,14 @@ Existing rows (all from the original USDA PLANTS ingest) are backfilled
 as source='usda_plants', verified=1 -- that's institutional data already
 tied to the right species by USDA's own curation, not a new identification
 claim someone just made, so it isn't held to the same unverified-by-default
-rule a brand new upload is. Idempotent: safe to re-run.
+rule a brand new upload is.
+
+Also adds `data BLOB` (2026-10-29, for data/ingest_inaturalist_images.py):
+externally-sourced images we actually have the right bytes for (CC0/CC-BY)
+get cached directly in the row instead of just storing another live URL --
+USDA's own images stay URL-only (unchanged, a much bigger re-ingest to
+redo), but a community-sourced photo is pointless for a grid-down app if
+it still needs the internet to actually render. Idempotent: safe to re-run.
 """
 import sqlite3
 from pathlib import Path
@@ -27,6 +34,7 @@ def main():
         ("added_at", "TEXT"),
         ("verified_by", "TEXT"),
         ("verified_at", "TEXT"),
+        ("data", "BLOB"),
     ]
     for col, decl in additions:
         if col in existing:

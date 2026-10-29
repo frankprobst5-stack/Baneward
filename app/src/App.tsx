@@ -23,6 +23,7 @@ interface ImageInfo {
   verified: boolean;
   added_by: string | null;
   added_at: string | null;
+  data_base64: string | null;
 }
 
 interface ClaimInfo {
@@ -229,6 +230,7 @@ function App() {
 
   const usableImages = selected?.images.filter((i) => i.source === "usda_plants" && i.is_public_domain) ?? [];
   const userPhotos = selected?.images.filter((i) => i.source === "user_upload") ?? [];
+  const communityPhotos = selected?.images.filter((i) => i.source === "inaturalist") ?? [];
   const claimsByCategory = (selected?.claims ?? []).reduce<Record<string, ClaimInfo[]>>((acc, c) => {
     (acc[c.category] ??= []).push(c);
     return acc;
@@ -406,6 +408,45 @@ function App() {
                   No public-domain image on file for this species
                   {selected.images.length > 0 ? " (all existing photos are copyrighted)." : "."}
                 </p>
+              )}
+
+              {communityPhotos.length > 0 && (
+                <section className="community-photos-section">
+                  <h3>Community Photos (iNaturalist)</h3>
+                  <p className="form-note">
+                    Research-grade on iNaturalist — at least two independent people agreed on
+                    the identification — which is real, but it's a community ID, not USDA's
+                    own institutional data. Cached locally (CC0/CC-BY only) so it works
+                    offline; starts unverified like everything that isn't USDA's own.
+                  </p>
+                  <div className="images">
+                    {communityPhotos.map((img) => (
+                      <figure key={img.id} className={img.verified ? "verified" : "unverified"}>
+                        {img.data_base64 ? (
+                          <img src={img.data_base64} alt={selected.common_name ?? selected.scientific_name} loading="lazy" />
+                        ) : (
+                          <div className="image-loading">Loading…</div>
+                        )}
+                        <figcaption>
+                          <span className={`claim-status ${img.verified ? "status-verified" : "status-unverified"}`}>
+                            {img.verified ? "Verified" : "Unverified"}
+                          </span>
+                          <div className="attribution-text">{img.photographer}</div>
+                          <div className="user-photo-actions">
+                            {!img.verified && (
+                              <button type="button" onClick={() => verifyImage(img.id)}>
+                                Verify
+                              </button>
+                            )}
+                            <button type="button" className="danger" onClick={() => removeImage(img.id)}>
+                              Remove
+                            </button>
+                          </div>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </section>
               )}
 
               <section className="user-photos-section">

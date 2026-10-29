@@ -120,15 +120,18 @@ body { margin: 0; }
 .images figcaption { font-size: 0.68rem; color: var(--text-muted); margin-top: 3px; }
 .no-images { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
 
-.user-photos-section { margin-bottom: 20px; }
-.user-photos-section h3 { margin-bottom: 4px; }
-.user-photos-section .images figure {
+.user-photos-section, .community-photos-section { margin-bottom: 20px; }
+.user-photos-section h3, .community-photos-section h3 { margin-bottom: 4px; }
+.user-photos-section .images figure,
+.community-photos-section .images figure {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px;
 }
-.user-photos-section .images figure.unverified { border-left: 3px solid var(--amber); }
-.user-photos-section .images figure.verified { border-left: 3px solid var(--green); }
+.user-photos-section .images figure.unverified,
+.community-photos-section .images figure.unverified { border-left: 3px solid var(--amber); }
+.user-photos-section .images figure.verified,
+.community-photos-section .images figure.verified { border-left: 3px solid var(--green); }
 .image-loading {
   width: 100%;
   height: 110px;
@@ -140,7 +143,8 @@ body { margin: 0; }
   background: var(--bg-input);
   border-radius: 6px;
 }
-.user-photos-section figcaption { margin-top: 4px; }
+.user-photos-section figcaption, .community-photos-section figcaption { margin-top: 4px; }
+.attribution-text { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
 .user-photo-actions { display: flex; gap: 6px; margin-top: 4px; }
 .user-photo-actions button { padding: 3px 8px; font-size: 0.72rem; }
 .error-text { color: var(--red); font-size: 0.78rem; margin: 6px 0 0; }
