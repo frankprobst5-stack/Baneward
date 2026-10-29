@@ -92,6 +92,31 @@ fn ensure_schema(conn: &Connection) {
         CREATE INDEX IF NOT EXISTS idx_species_common ON species(common_name);
         CREATE INDEX IF NOT EXISTS idx_images_species ON images(species_symbol);
         CREATE INDEX IF NOT EXISTS idx_tags_species ON tags(species_symbol);
+
+        -- Real scientific-name synonyms (data/ingest_characteristics_and_synonyms.py)
+        -- so an older/alternate Latin name still finds the current accepted species.
+        CREATE TABLE IF NOT EXISTS synonyms (
+            id INTEGER PRIMARY KEY,
+            symbol TEXT NOT NULL,
+            accepted_symbol TEXT NOT NULL REFERENCES species(symbol),
+            scientific_name TEXT NOT NULL,
+            authorship TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_synonyms_sciname ON synonyms(scientific_name);
+        CREATE INDEX IF NOT EXISTS idx_synonyms_accepted ON synonyms(accepted_symbol);
+
+        -- Real USDA PlantCharacteristics data -- only ~5.8% of species have
+        -- any (confirmed, not assumed universal); a missing row here means
+        -- genuinely undocumented, not false.
+        CREATE TABLE IF NOT EXISTS characteristics (
+            id INTEGER PRIMARY KEY,
+            species_symbol TEXT NOT NULL REFERENCES species(symbol),
+            name TEXT NOT NULL,
+            value TEXT,
+            category TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_characteristics_species ON characteristics(species_symbol);
+        CREATE INDEX IF NOT EXISTS idx_characteristics_name_value ON characteristics(name, value);
         ",
     )
     .expect("failed to ensure schema");

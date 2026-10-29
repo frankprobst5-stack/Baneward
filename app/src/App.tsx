@@ -8,6 +8,8 @@ interface SpeciesSummary {
   common_name: string | null;
   family: string | null;
   has_poisonous_tag: boolean;
+  matched_via: "common_name" | "scientific_name" | "synonym";
+  matched_synonym: string | null;
 }
 
 interface ImageInfo {
@@ -27,6 +29,12 @@ interface TagInfo {
   added_at: string;
 }
 
+interface CharacteristicInfo {
+  name: string;
+  value: string | null;
+  category: string | null;
+}
+
 interface SpeciesDetail {
   symbol: string;
   scientific_name: string;
@@ -39,6 +47,8 @@ interface SpeciesDetail {
   source_url: string | null;
   images: ImageInfo[];
   tags: TagInfo[];
+  characteristics: CharacteristicInfo[];
+  synonyms: string[];
 }
 
 const TAG_TYPES = ["poisonous", "edible", "medical", "useful"] as const;
@@ -144,6 +154,11 @@ function App() {
                   <i>{r.scientific_name}</i>
                   {r.family ? ` · ${r.family}` : ""}
                 </span>
+                {r.matched_via === "synonym" && r.matched_synonym && (
+                  <span className="matched-via">
+                    matched via old name <i>{r.matched_synonym}</i>
+                  </span>
+                )}
                 {r.has_poisonous_tag && <span className="pill pill-danger">⚠ POISONOUS</span>}
               </li>
             ))}
@@ -167,6 +182,17 @@ function App() {
                 <i>{selected.scientific_name}</i> {selected.authorship}
                 {selected.family ? ` · ${selected.family}` : ""}
               </p>
+              {selected.synonyms.length > 0 && (
+                <p className="synonyms">
+                  Also known as:{" "}
+                  {selected.synonyms.map((s, i) => (
+                    <span key={s}>
+                      {i > 0 && ", "}
+                      <i>{s}</i>
+                    </span>
+                  ))}
+                </p>
+              )}
 
               <dl className="facts">
                 {selected.duration && (
@@ -188,6 +214,39 @@ function App() {
                   </>
                 )}
               </dl>
+
+              {selected.characteristics.length > 0 ? (
+                <section className="characteristics-section">
+                  <h3>Characteristics</h3>
+                  <p className="form-note">
+                    Real USDA PLANTS data — documented for only about 1 in 17 species, so
+                    this section is empty for most. Agricultural/conservation-use
+                    judgments (e.g. "Toxicity"), not a verified human-safety claim —
+                    treat alongside the Tags section below, not instead of it.
+                  </p>
+                  {Object.entries(
+                    selected.characteristics.reduce<Record<string, CharacteristicInfo[]>>((acc, c) => {
+                      const cat = c.category ?? "Other";
+                      (acc[cat] ??= []).push(c);
+                      return acc;
+                    }, {})
+                  ).map(([category, items]) => (
+                    <div key={category} className="char-group">
+                      <h4>{category}</h4>
+                      <dl className="facts">
+                        {items.map((c) => (
+                          <>
+                            <dt key={c.name + "-dt"}>{c.name}</dt>
+                            <dd key={c.name + "-dd"}>{c.value ?? "—"}</dd>
+                          </>
+                        ))}
+                      </dl>
+                    </div>
+                  ))}
+                </section>
+              ) : (
+                <p className="no-images">No USDA characteristics documented for this species.</p>
+              )}
 
               {usableImages.length > 0 ? (
                 <div className="images">

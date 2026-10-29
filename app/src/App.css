@@ -94,6 +94,7 @@ body { margin: 0; }
 .result .sci { font-size: 0.78rem; color: var(--text-muted); }
 .result .pill { align-self: flex-start; margin-top: 3px; font-size: 0.68rem; padding: 1px 6px; border-radius: 999px; }
 .pill-danger { background: rgba(224, 82, 82, 0.18); color: var(--red); font-weight: 700; }
+.matched-via { font-size: 0.72rem; color: var(--blue-bright); }
 .empty { color: var(--text-muted); padding: 10px; font-size: 0.85rem; }
 
 .detail-pane {
@@ -106,7 +107,8 @@ body { margin: 0; }
 .placeholder { color: var(--text-muted); }
 
 .detail h2 { margin: 0 0 2px; }
-.sci-name { color: var(--text-muted); margin: 0 0 14px; font-size: 0.9rem; }
+.sci-name { color: var(--text-muted); margin: 0 0 4px; font-size: 0.9rem; }
+.synonyms { color: var(--text-muted); margin: 0 0 14px; font-size: 0.8rem; }
 
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 0.85rem; margin-bottom: 16px; }
 .facts dt { color: var(--text-muted); }
@@ -117,6 +119,17 @@ body { margin: 0; }
 .images img { width: 100%; height: 110px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
 .images figcaption { font-size: 0.68rem; color: var(--text-muted); margin-top: 3px; }
 .no-images { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
+
+.characteristics-section { margin-bottom: 20px; }
+.characteristics-section h3 { margin-bottom: 4px; }
+.char-group { margin-top: 14px; }
+.char-group h4 {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--blue-bright);
+}
 
 .tags-section h3 { margin-bottom: 6px; }
 .no-tags { color: var(--text-muted); font-size: 0.85rem; }

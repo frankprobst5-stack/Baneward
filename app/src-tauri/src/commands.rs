@@ -15,23 +15,51 @@ pub struct SpeciesSummary {
     pub common_name: Option<String>,
     pub family: Option<String>,
     pub has_poisonous_tag: bool,
+    /// Why this result matched — "common_name" | "scientific_name" | "synonym".
+    /// A synonym match means the query hit an older/alternate Latin name; the
+    /// rest of the row is still the real, current accepted species, never the
+    /// synonym's own (sometimes outdated) data.
+    pub matched_via: String,
+    /// Set only when matched_via == "synonym" — the actual old name that matched,
+    /// so the UI can show "matched via <old name>" instead of looking wrong.
+    pub matched_synonym: Option<String>,
 }
 
 #[tauri::command]
 pub fn search_species(db: State<Db>, query: String) -> Result<Vec<SpeciesSummary>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let like = format!("%{}%", query.trim());
+
+    // Direct matches (common or scientific name) ranked above synonym
+    // matches, common-name hits ranked above scientific-name hits within
+    // that. A species that matches both directly and via an old synonym
+    // name only needs the direct row -- the dedup pass below keeps the
+    // first (highest-ranked) occurrence per symbol.
     let mut stmt = conn
         .prepare(
             "SELECT s.symbol, s.scientific_name, s.common_name, s.family,
                     EXISTS(SELECT 1 FROM tags t WHERE t.species_symbol = s.symbol
-                           AND t.tag_type = 'poisonous' AND t.verified = 1) AS has_poisonous_tag
+                           AND t.tag_type = 'poisonous' AND t.verified = 1) AS has_poisonous_tag,
+                    CASE WHEN s.common_name LIKE ?1 THEN 'common_name' ELSE 'scientific_name' END AS matched_via,
+                    NULL AS matched_synonym,
+                    0 AS rank
              FROM species s
              WHERE s.scientific_name LIKE ?1 OR s.common_name LIKE ?1
-             ORDER BY
-                 CASE WHEN s.common_name LIKE ?1 THEN 0 ELSE 1 END,
-                 s.common_name, s.scientific_name
-             LIMIT 50",
+
+             UNION ALL
+
+             SELECT s.symbol, s.scientific_name, s.common_name, s.family,
+                    EXISTS(SELECT 1 FROM tags t WHERE t.species_symbol = s.symbol
+                           AND t.tag_type = 'poisonous' AND t.verified = 1) AS has_poisonous_tag,
+                    'synonym' AS matched_via,
+                    syn.scientific_name AS matched_synonym,
+                    1 AS rank
+             FROM synonyms syn
+             JOIN species s ON s.symbol = syn.accepted_symbol
+             WHERE syn.scientific_name LIKE ?1
+
+             ORDER BY rank, common_name, scientific_name
+             LIMIT 200",
         )
         .map_err(|e| e.to_string())?;
 
@@ -43,11 +71,22 @@ pub fn search_species(db: State<Db>, query: String) -> Result<Vec<SpeciesSummary
                 common_name: row.get(2)?,
                 family: row.get(3)?,
                 has_poisonous_tag: row.get(4)?,
+                matched_via: row.get(5)?,
+                matched_synonym: row.get(6)?,
             })
         })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    // Dedup by symbol, keeping the first (best-ranked) occurrence, then cap
+    // at 50 real results for the UI.
+    let mut seen = std::collections::HashSet::new();
+    Ok(rows
+        .into_iter()
+        .filter(|r| seen.insert(r.symbol.clone()))
+        .take(50)
+        .collect())
 }
 
 #[derive(Serialize)]
@@ -70,6 +109,13 @@ pub struct TagInfo {
 }
 
 #[derive(Serialize)]
+pub struct CharacteristicInfo {
+    pub name: String,
+    pub value: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Serialize)]
 pub struct SpeciesDetail {
     pub symbol: String,
     pub scientific_name: String,
@@ -82,6 +128,12 @@ pub struct SpeciesDetail {
     pub source_url: Option<String>,
     pub images: Vec<ImageInfo>,
     pub tags: Vec<TagInfo>,
+    /// Real USDA PlantCharacteristics data — present for only ~5.8% of
+    /// species (confirmed, not assumed universal). An empty list means
+    /// genuinely undocumented, not "nothing interesting."
+    pub characteristics: Vec<CharacteristicInfo>,
+    /// Older/alternate scientific names that resolve to this species.
+    pub synonyms: Vec<String>,
 }
 
 #[tauri::command]
@@ -107,6 +159,8 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                     source_url: row.get(8)?,
                     images: Vec::new(),
                     tags: Vec::new(),
+                    characteristics: Vec::new(),
+                    synonyms: Vec::new(),
                 })
             },
         )
@@ -149,6 +203,36 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                 added_at: row.get(6)?,
             })
         })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut char_stmt = conn
+        .prepare(
+            "SELECT name, value, category FROM characteristics
+             WHERE species_symbol = ?1 ORDER BY category, name",
+        )
+        .map_err(|e| e.to_string())?;
+    species.characteristics = char_stmt
+        .query_map(params![species.symbol], |row| {
+            Ok(CharacteristicInfo {
+                name: row.get(0)?,
+                value: row.get(1)?,
+                category: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut syn_stmt = conn
+        .prepare(
+            "SELECT scientific_name FROM synonyms
+             WHERE accepted_symbol = ?1 ORDER BY scientific_name",
+        )
+        .map_err(|e| e.to_string())?;
+    species.synonyms = syn_stmt
+        .query_map(params![species.symbol], |row| row.get::<_, String>(0))
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;

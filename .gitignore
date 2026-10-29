@@ -18,6 +18,7 @@ data/raw/
 # reproducible via data/ingest_full.py against the real USDA API,
 # not something to carry in git history.
 data/cache/
+data/cache_characteristics/
 data/ingest_full.log
 
 # The one real exception to `*.db` above: the bundled app resource is a

@@ -152,6 +152,51 @@ isn't search/tag-editing — image bytes cached locally instead of live USDA URL
 UI still needs the internet to show a photo), and any real UX pass beyond this first
 working version.
 
+## Phase 1.5 — Real identification data: synonyms and characteristics ✅ done 2026-10-29
+
+Real feedback from an outside review of Baneward (Frank shared it, asked to review the
+ideas): the single biggest weakness is that Baneward could only be searched by a name the
+user already knows — no way to find a plant from what they can actually observe. The
+review's own proposed fix (structured leaf/flower/habitat characteristics) assumed that
+data would need sourcing from scratch. Checked instead: USDA PLANTS already has almost
+exactly that, via a second real API endpoint — `PlantCharacteristics` — not used in Phase 0
+and undocumented in the data package's own metadata. Found it by intercepting the real
+network call USDA's own site makes (it's a path parameter,
+`/api/PlantCharacteristics/{plantId}`, not a query string — every earlier guess at the
+endpoint shape 404'd until this was confirmed live).
+
+**Real data added, both ingested with a dedicated, resumable script
+(`data/ingest_characteristics_and_synonyms.py`)**:
+- **30,531 scientific-name synonyms** (of 44,163 total synonym rows in USDA's own data;
+  the rest point to genus/family-level or non-species-rank nodes, deliberately not chased
+  further) — an older/alternate Latin name now resolves to the current accepted species.
+  Real example found verifying this: "seep monkeyflower" alone carries 69 historical
+  synonyms from decades of *Mimulus* taxonomic revision.
+- **200,872 real characteristic rows across 2,058 species** (confirmed 5.8% coverage, not
+  assumed universal — water hemlock itself has none). Real fields: flower/foliage/fruit
+  color, growth form, height, bloom period, drought/shade tolerance, and — directly
+  relevant to the whole point of this project — `Toxicity` and `Palatable Human`. This is
+  NRCS's own agricultural/conservation-use judgment, not a verified human-poisoning
+  determination — treated as a real cross-reference signal alongside the Tags system, never
+  a substitute for it.
+
+**Wired into the real app, same session**: `search_species` now matches synonyms too and
+tells the UI which name actually matched (`matched_via`: common name / scientific name /
+synonym) so a result never looks wrong when it was reached through an old name.
+`get_species` returns real characteristics (grouped by category, with an honest note about
+the ~1-in-17 coverage rate) and the list of known synonyms. Verified against the actual
+running app's live database, not just the schema — including a surgical, careful update to
+the already-running dev instance's real data file (checked first that no new user tags had
+been added since launch, so nothing could be silently lost).
+
+**Correction to the outside review's own sourcing proposal, also checked for real**: it
+separately suggested the FDA's decommissioned Poisonous Plant Database as a public-domain
+poison-data source. Confirmed directly on FDA's own page: genuinely public domain. But the
+actual data endpoint is a real 404 — decommissioned in 2008, now fully offline, not just
+de-linked. Same "legitimately public domain but not currently accessible" pattern already
+hit once with the ARS Poisonous Plants Checklist in Phase 0. A Wayback Machine snapshot
+might still recover it — a real next step, not done here.
+
 ## Phase 2 — Local AI search integration
 
 Wire up search/explain against Citadel's existing Off-Grid AI (Ollama) infrastructure,
