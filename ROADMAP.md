@@ -289,12 +289,16 @@ phase: checked for new user claims first (none), updated the live copy's schema 
 surgically via `ATTACH DATABASE` rather than overwriting the file, resynced the bundled
 resource afterward.
 
-## Open ideas from the outside reviews — not yet scheduled
+## v2 — Discovery & UX pass (planned, not started)
 
-Two outside reviews (Frank shared both, asked for a critical read rather than a blind
-build) raised more than what's been checked or built so far. What's already real is
-folded into the phases above (characteristics/synonym search data in Phase 1.5, the
-evidence-type claims model in Phase 1.6); what's still just an idea, not yet a phase:
+**v1 is everything above through Phase 1.7**: a real working app, real USDA + Dr. Duke
+data, search by name/synonym/characteristic, evidence-typed claims, documented chemistry.
+v2 is committed here as its own real milestone — not a loose "someday" list — specifically
+so the ideas raised by two outside reviews (Frank shared both, asked for a critical read
+rather than a blind build) don't quietly disappear before there's a reason to build them.
+What those reviews got right and is already real is folded into v1 above
+(characteristics/synonym search data in Phase 1.5, the evidence-type claims model in
+Phase 1.6); what's still just an idea is scoped into v2:
 
 - **Identification wizard** — step through observable traits (flower color, leaf shape,
   habitat) to narrow down a species without knowing its name first. Phase 1.5 shipped the
@@ -314,9 +318,9 @@ evidence-type claims model in Phase 1.6); what's still just an idea, not yet a p
   check and never actually verified against the live service, unlike every other source
   in this document. Real open item, not closed either way.
 
-None of these are blocking Phase 2 or 3. They're real candidates for a Phase 1.8 (or
-later) UI pass once there's a reason to prioritize discovery/UX over more data sourcing —
-logged here so they don't quietly disappear, not committed to yet.
+v2 doesn't block Phase 2 or 3 below, and isn't scheduled ahead of them either — it's
+committed as real scope, with no start date yet, so it survives past this session instead
+of living only in chat history.
 
 ## Phase 2 — Local AI search integration
 
