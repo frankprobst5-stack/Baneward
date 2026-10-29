@@ -3,14 +3,18 @@
 Real, dated, honest about what's done vs. planned — same discipline every other project in
 the [Citadel Ecosystem](https://github.com/frankprobst5-stack/citadel-ecosystem) uses.
 
-## Where things stand (2026-10-27)
+## Where things stand (2026-10-29)
 
 Repo created, name chosen (`Baneward` — "bane" = poison, as in wolfsbane/henbane, + "ward" =
 guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0 is fully
 done**: all 35,326 real US species are enriched and sitting in a real local database, zero
 failures, verified against live sources throughout — not assumed. Two of the three
 originally-planned sources turned out not to hold up on direct verification; the plan was
-corrected in response, not papered over. See below for the full detail.
+corrected in response, not papered over. Phases 1 through 1.7 are also done: a real
+standalone Tauri app (matching WayStation's stack), synonym/characteristic search data,
+51,580 real ethnobotanical claims, and 3,001 real documented chemicals with their lab
+bioactivities — all unverified by default, same rule throughout. See below for the full
+detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -240,6 +244,47 @@ category since one species — castor bean — has 202 real claims on its own) b
 and verified against the real running app's live database, not just the schema — checked
 first that no new claims had been added since the last session before migrating the live
 copy, same care as Phase 1.5's update.
+
+## Phase 1.7 — Real Dr. Duke chemistry data, normalized after a real self-caught bug ✅ done 2026-10-29
+
+Phase 1.6 deliberately scoped Dr. Duke's ingest to `ETHNOBOT` only and left the
+chemical-level tables (`ACTIVITIES`, `AGGREGAC`, `CHEMICALS`, `FARMACY_NEW`) as real,
+scoped future work. This phase did that work, resolving through `FNFTAX.csv` the same way
+`ETHNOBOT` resolved through genus/species: **1,371 of our species match**, with real
+documented bioactivities (chemical → activity/dosage/reference, via `AGGREGAC`) for the
+chemicals they contain.
+
+**Real bug found and fixed before anything was committed, not shipped and patched
+after**: the first attempt stored one `claims` row per (species, chemical, bioactivity)
+triple — **983,790 rows, 336MB**, with one species (*Tanacetum parthenium*, TAPA6) alone
+picking up 8,460 rows, because a chemical's whole bioactivity profile got duplicated onto
+every species that happens to contain that chemical. Caught this by checking the real
+output before touching the live app or git, not by trusting the ingest script's own exit
+code — rolled it back cleanly (`claims` table untouched throughout, back to the real
+51,580-row count from Phase 1.6), reported it honestly, and redesigned before re-running
+anything.
+
+**Real fix**: a chemical's documented activities are a fact about the chemical, not about
+any one species that happens to contain it — store each chemical and its activities
+exactly once, link species to chemicals through a lightweight join table. Three new
+tables (`chemicals`, `chemical_activities`, `species_chemicals`,
+`app/src-tauri/src/db.rs`), rebuilt ingest (`data/ingest_duke_phytochemistry.py`).
+Deliberately no `category` field on `chemical_activities` at all — a raw lab-documented
+bioactivity (e.g. Antihepatotoxic, Anticarcinogenic — real activity names found during this
+work that are the semantic *opposite* of what a naive "toxic" keyword search would
+surface, a real trap avoided by not attempting automated poisonous/edible classification
+here) is browsable reference data, not a claim about whether a given plant is safe. The
+`claims` table and its verified-by-default-false rule are untouched by this phase.
+
+**Real final numbers**: 3,001 distinct chemicals, 18,875 chemical-activity rows, 46,913
+species-chemical links — median 15 chemicals per matched species, max 221, nothing close
+to the first attempt's 8,460. Bundled database: 59MB (was 53MB after Phase 1.6). New
+collapsible "Chemistry" section in the species detail view (`app/src/App.tsx`), one entry
+per chemical with plant part and documented bioactivities including dosage/reference where
+present. Verified against the real running app's live database the same way as every prior
+phase: checked for new user claims first (none), updated the live copy's schema and data
+surgically via `ATTACH DATABASE` rather than overwriting the file, resynced the bundled
+resource afterward.
 
 ## Phase 2 — Local AI search integration
 
