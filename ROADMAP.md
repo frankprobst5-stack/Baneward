@@ -198,8 +198,11 @@ separately suggested the FDA's decommissioned Poisonous Plant Database as a publ
 poison-data source. Confirmed directly on FDA's own page: genuinely public domain. But the
 actual data endpoint is a real 404 — decommissioned in 2008, now fully offline, not just
 de-linked. Same "legitimately public domain but not currently accessible" pattern already
-hit once with the ARS Poisonous Plants Checklist in Phase 0. A Wayback Machine snapshot
-might still recover it — a real next step, not done here.
+hit once with the ARS Poisonous Plants Checklist in Phase 0. **Follow-up done, closed as
+unrecoverable for now**: checked the Wayback Machine for a snapshot of the old endpoint —
+partial evidence only (some crawled HTML, no intact dataset) before the Internet Archive
+itself went offline mid-check. Not retried since; worth one more real look if the Archive
+comes back, but not something to keep blocking on.
 
 ## Phase 1.6 — Richer claims schema + real Dr. Duke ethnobotanical data ✅ done 2026-10-29
 
@@ -285,6 +288,35 @@ present. Verified against the real running app's live database the same way as e
 phase: checked for new user claims first (none), updated the live copy's schema and data
 surgically via `ATTACH DATABASE` rather than overwriting the file, resynced the bundled
 resource afterward.
+
+## Open ideas from the outside reviews — not yet scheduled
+
+Two outside reviews (Frank shared both, asked for a critical read rather than a blind
+build) raised more than what's been checked or built so far. What's already real is
+folded into the phases above (characteristics/synonym search data in Phase 1.5, the
+evidence-type claims model in Phase 1.6); what's still just an idea, not yet a phase:
+
+- **Identification wizard** — step through observable traits (flower color, leaf shape,
+  habitat) to narrow down a species without knowing its name first. Phase 1.5 shipped the
+  underlying data (200,872 characteristic rows) and wired it into text search, but nobody's
+  built the actual guided, step-by-step UI the review described — real data, no wizard yet.
+- **Visual, filterable plant browser** — browse by trait instead of typing a search term.
+  Same situation: the data exists, the browse-by-feature UI doesn't.
+- **Similar-species side-by-side comparison** — the review's own best example was exactly
+  Baneward's own classic case, poison hemlock vs. wild carrot/Queen Anne's lace. No
+  comparison view exists yet; today a user has to open each species separately and
+  remember the difference.
+- **Field notes** — a place for a user's own observations tied to a sighting (location,
+  date, photo), separate from the editorial claims system. Not designed yet, not just
+  unbuilt.
+- **Kew's Medicinal Plant Names Services (MPNS)**, raised in the second review as a
+  possible additional reference source — flagged early on as needing its own license
+  check and never actually verified against the live service, unlike every other source
+  in this document. Real open item, not closed either way.
+
+None of these are blocking Phase 2 or 3. They're real candidates for a Phase 1.8 (or
+later) UI pass once there's a reason to prioritize discovery/UX over more data sourcing —
+logged here so they don't quietly disappear, not committed to yet.
 
 ## Phase 2 — Local AI search integration
 
