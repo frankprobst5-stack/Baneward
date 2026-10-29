@@ -4,6 +4,7 @@
 //! appear verified except the separate, deliberate `verify_claim` call.
 
 use crate::db::Db;
+use base64::Engine;
 use rusqlite::params;
 use serde::Serialize;
 use tauri::State;
@@ -91,10 +92,19 @@ pub fn search_species(db: State<Db>, query: String) -> Result<Vec<SpeciesSummary
 
 #[derive(Serialize)]
 pub struct ImageInfo {
+    pub id: i64,
     pub url: String,
     pub is_public_domain: bool,
     pub photographer: Option<String>,
     pub institution: Option<String>,
+    /// 'usda_plants' for everything from the original ingest, 'user_upload'
+    /// for a photo someone added through the app.
+    pub source: String,
+    /// User uploads start false, same rule as a claim -- see `add_user_image`.
+    /// USDA rows are true by default (institutional data, not a new claim).
+    pub verified: bool,
+    pub added_by: Option<String>,
+    pub added_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -198,17 +208,24 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
 
     let mut img_stmt = conn
         .prepare(
-            "SELECT url, is_public_domain, photographer, institution
-             FROM images WHERE species_symbol = ?1 ORDER BY is_public_domain DESC",
+            "SELECT id, url, is_public_domain, photographer, institution,
+                    source, verified, added_by, added_at
+             FROM images WHERE species_symbol = ?1
+             ORDER BY is_public_domain DESC, added_at DESC",
         )
         .map_err(|e| e.to_string())?;
     species.images = img_stmt
         .query_map(params![species.symbol], |row| {
             Ok(ImageInfo {
-                url: row.get(0)?,
-                is_public_domain: row.get(1)?,
-                photographer: row.get(2)?,
-                institution: row.get(3)?,
+                id: row.get(0)?,
+                url: row.get(1)?,
+                is_public_domain: row.get(2)?,
+                photographer: row.get(3)?,
+                institution: row.get(4)?,
+                source: row.get(5)?,
+                verified: row.get(6)?,
+                added_by: row.get(7)?,
+                added_at: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -416,4 +433,153 @@ pub fn delete_claim(db: State<Db>, claim_id: i64) -> Result<(), String> {
     conn.execute("DELETE FROM claims WHERE id = ?1", params![claim_id])
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+const VALID_IMAGE_EXTENSIONS: [&str; 5] = ["jpg", "jpeg", "png", "webp", "gif"];
+
+fn image_mime_type(ext: &str) -> &'static str {
+    match ext {
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        _ => "image/jpeg",
+    }
+}
+
+/// User-uploaded images only ever live under here -- enforced in both
+/// `add_user_image` (where they get copied to) and `read_image_bytes` (so
+/// that command can't be made to read an arbitrary path off disk).
+fn user_images_dir() -> std::path::PathBuf {
+    crate::db::data_dir().join("user_images")
+}
+
+fn is_under_user_images_dir(path: &std::path::Path) -> bool {
+    let base = user_images_dir();
+    match (path.canonicalize(), base.canonicalize()) {
+        (Ok(p), Ok(b)) => p.starts_with(b),
+        _ => false,
+    }
+}
+
+/// Lets someone attach their own photo to a species -- the same rule as a
+/// text claim (see README.md): always inserted unverified. A user's photo
+/// is a claim that this is what the species looks like, not a confirmed
+/// fact just because someone uploaded it -- "identification confidence is
+/// not safety confidence" applies to a picture exactly as much as a tag.
+#[tauri::command]
+pub fn add_user_image(
+    db: State<Db>,
+    symbol: String,
+    path: String,
+    added_by: Option<String>,
+) -> Result<i64, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM species WHERE symbol = ?1",
+            params![symbol],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+    if !exists {
+        return Err(format!("no species with symbol {symbol}"));
+    }
+
+    let src_path = std::path::Path::new(&path);
+    let ext = src_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+    if !VALID_IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(format!(
+            "unsupported image type '.{ext}' -- use one of {VALID_IMAGE_EXTENSIONS:?}"
+        ));
+    }
+
+    let dest_dir = user_images_dir().join(&symbol);
+    std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let dest_path = dest_dir.join(format!("{stamp}.{ext}"));
+    std::fs::copy(src_path, &dest_path).map_err(|e| format!("couldn't copy image: {e}"))?;
+
+    conn.execute(
+        "INSERT INTO images
+            (species_symbol, usda_image_id, url, is_public_domain, photographer,
+             institution, source, verified, added_by, added_at)
+         VALUES (?1, NULL, ?2, 0, NULL, NULL, 'user_upload', 0, ?3, datetime('now'))",
+        params![symbol, dest_path.to_string_lossy(), added_by],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// The only path by which a user-uploaded photo becomes verified -- a
+/// separate, deliberate call, same pattern as `verify_claim`. Scoped to
+/// user uploads only; USDA's own images are already institutionally
+/// sourced and don't go through this.
+#[tauri::command]
+pub fn verify_user_image(
+    db: State<Db>,
+    image_id: i64,
+    verified_by: Option<String>,
+) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let changed = conn
+        .execute(
+            "UPDATE images SET verified = 1, verified_by = ?2, verified_at = datetime('now')
+             WHERE id = ?1 AND source = 'user_upload'",
+            params![image_id, verified_by],
+        )
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err(format!("no user-uploaded image with id {image_id}"));
+    }
+    Ok(())
+}
+
+/// Only ever deletes a user's own upload, never a bundled USDA image -- the
+/// `source = 'user_upload'` clause is the real enforcement, not just a
+/// hidden button in the UI.
+#[tauri::command]
+pub fn delete_user_image(db: State<Db>, image_id: i64) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let path: String = conn
+        .query_row(
+            "SELECT url FROM images WHERE id = ?1 AND source = 'user_upload'",
+            params![image_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| format!("no user-uploaded image with id {image_id}"))?;
+    conn.execute(
+        "DELETE FROM images WHERE id = ?1 AND source = 'user_upload'",
+        params![image_id],
+    )
+    .map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(path); // best-effort cleanup; the db row is the source of truth
+    Ok(())
+}
+
+/// Reads a local user-uploaded image off disk and returns it as a data URI
+/// the frontend can drop straight into an <img src> -- USDA images are
+/// plain http(s) URLs already and never go through this. Restricted to
+/// `user_images_dir()` so this can't become a general local-file reader
+/// callable from the webview.
+#[tauri::command]
+pub fn read_image_bytes(path: String) -> Result<String, String> {
+    let p = std::path::Path::new(&path);
+    if !is_under_user_images_dir(p) {
+        return Err("refusing to read a path outside the user-images directory".into());
+    }
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+    let bytes = std::fs::read(p).map_err(|e| format!("couldn't read image: {e}"))?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:{};base64,{}", image_mime_type(&ext), encoded))
 }

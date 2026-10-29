@@ -22,6 +22,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Dynamic runtime registration of the baneward:// scheme --
             // same real reason as WayStation's: only needed on Linux
@@ -46,6 +47,10 @@ pub fn run() {
             commands::add_claim,
             commands::verify_claim,
             commands::delete_claim,
+            commands::add_user_image,
+            commands::verify_user_image,
+            commands::delete_user_image,
+            commands::read_image_bytes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

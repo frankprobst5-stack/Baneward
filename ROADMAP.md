@@ -10,11 +10,11 @@ guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0
 done**: all 35,326 real US species are enriched and sitting in a real local database, zero
 failures, verified against live sources throughout — not assumed. Two of the three
 originally-planned sources turned out not to hold up on direct verification; the plan was
-corrected in response, not papered over. Phases 1 through 1.7 are also done: a real
+corrected in response, not papered over. Phases 1 through 1.8 are also done: a real
 standalone Tauri app (matching WayStation's stack), synonym/characteristic search data,
-51,580 real ethnobotanical claims, and 3,001 real documented chemicals with their lab
-bioactivities — all unverified by default, same rule throughout. See below for the full
-detail.
+51,580 real ethnobotanical claims, 3,001 real documented chemicals with their lab
+bioactivities, and now a real "add your own photo" feature — all unverified by default,
+same rule throughout, now including a user's own photo. See below for the full detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -330,6 +330,61 @@ present. Verified against the real running app's live database the same way as e
 phase: checked for new user claims first (none), updated the live copy's schema and data
 surgically via `ATTACH DATABASE` rather than overwriting the file, resynced the bundled
 resource afterward.
+
+## Phase 1.8 — User-uploaded photos, and a real check on where to find more images ✅ done 2026-10-29
+
+Frank's own framing: a photo is one of the top ways someone actually identifies a plant,
+so it should be exactly as easy to add as a claim already is. Two real pieces of work came
+out of that — closing the image-upload gap in the app itself, and checking whether the
+78% of species with no usable image (27,650 of 35,326, confirmed by direct query) have a
+real path to getting one.
+
+**Real check on more images, done before building anything**: an outside suggestion named
+iNaturalist, Wikimedia Commons, GBIF, Smithsonian, Pl@ntNet, and the Biodiversity Heritage
+Library. Checked the two most promising directly via their live APIs rather than taking the
+suggestion at face value — same discipline as every other source this project has touched:
+- **iNaturalist**: real and live. A bounded test against 50 random zero-image species
+  (live API, CC0/CC-BY only, research-grade) found at least one usable photo for **40 of
+  50 (80%)**. The bulk Open Data S3 bucket is genuinely public (confirmed by listing it
+  directly, no AWS key needed) and individual photos are fetchable at predictable URLs —
+  real, worth building as a real pipeline, not done yet.
+- **Wikimedia Commons**: API real, but a category query for a known species returned
+  mostly Wikidata/Wikipedia UI icons mixed in with the one real photo — a real filtering
+  problem to design around, not a blocker. The one real photo found was CC BY-SA 3.0
+  (share-alike), confirming in practice that license needs explicit handling, not just in
+  theory.
+- **GBIF**: real, but for the one species tested, every image on the first results page
+  was CC-BY-NC and sourced right back from iNaturalist's own bucket — for this use case it
+  mostly re-surfaces iNaturalist with extra aggregator overhead, not obviously worth a
+  separate pipeline.
+- **Smithsonian Open Access, Pl@ntNet, Biodiversity Heritage Library**: not verified.
+  Flagged honestly rather than vouched for secondhand.
+
+Real next step, not done here: a proper iNaturalist ingest pipeline (license filtering,
+taxonomic matching, dedup, provenance) — validated as worth building, not yet built.
+
+**Real feature shipped this phase**: "Add your own photo," mirroring `add_claim` exactly.
+Added `tauri-plugin-dialog` (already a real WayStation dependency, same version) for the
+native file picker, and a `base64` crate for serving a local file to the frontend without
+needing Tauri's asset-protocol scope config. Extended the real `images` table with
+`source`, `verified`, `added_by`, `added_at`, `verified_by`, `verified_at`
+(`data/migrate_images_schema.py`) — existing USDA rows backfilled as
+`source='usda_plants'`, `verified=1` (institutional data, not a new claim); every new
+upload inserts as `source='user_upload'`, `verified=0`. **Same rule as every text claim,
+restated for a photo**: a user's photo is a claim that this is what the species looks
+like, not a confirmed fact just because someone uploaded it — enforced in the Rust SQL
+itself (`add_user_image` hardcodes `verified=0`; `verify_user_image`/`delete_user_image`
+both gate on `WHERE source = 'user_upload'` so neither command can touch a bundled USDA
+image, verified directly against the real database, not assumed from reading the code).
+
+New "Your Photos" section in the species detail view, separate from the USDA public-domain
+grid, each upload showing a verified/unverified badge with Verify/Remove actions. Verified
+for real: `cargo check` and `npm run build` both clean, the live dev app rebuilt and kept
+running through every change, and the actual SQL from every new command (insert, the
+updated `get_species` query, verify, delete, including the ownership-guard case) run
+directly against a scratch copy of the real database — not just trusted because Rust
+compiled. Schema migrated on the master db, the live running app's db, and the bundled
+resource, same three-step process as every prior phase.
 
 ## v2 — Discovery & UX pass (planned, not started)
 

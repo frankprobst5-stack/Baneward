@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
 interface SpeciesSummary {
@@ -13,10 +14,15 @@ interface SpeciesSummary {
 }
 
 interface ImageInfo {
+  id: number;
   url: string;
   is_public_domain: boolean;
   photographer: string | null;
   institution: string | null;
+  source: string;
+  verified: boolean;
+  added_by: string | null;
+  added_at: string | null;
 }
 
 interface ClaimInfo {
@@ -101,6 +107,9 @@ function App() {
   const [source, setSource] = useState("");
   const [reference, setReference] = useState("");
   const [region, setRegion] = useState("");
+  const [userImageData, setUserImageData] = useState<Record<number, string>>({});
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -133,6 +142,53 @@ function App() {
 
   async function refreshSelected() {
     if (selected) await openSpecies(selected.symbol);
+  }
+
+  // User-uploaded photos live as local files, not http(s) URLs -- read_image_bytes
+  // turns each one into a data URI an <img> can actually use. USDA images already
+  // have a plain URL and skip this entirely.
+  useEffect(() => {
+    const userImages = selected?.images.filter((i) => i.source === "user_upload") ?? [];
+    userImages.forEach((img) => {
+      if (userImageData[img.id]) return;
+      invoke<string>("read_image_bytes", { path: img.url })
+        .then((dataUri) => setUserImageData((prev) => ({ ...prev, [img.id]: dataUri })))
+        .catch((e) => console.error("read_image_bytes failed", e));
+    });
+  }, [selected]);
+
+  async function uploadPhoto() {
+    if (!selected) return;
+    setUploadError(null);
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "Image", extensions: ["jpg", "jpeg", "png", "webp", "gif"] }],
+    });
+    if (!path) return; // cancelled
+    setUploadingPhoto(true);
+    try {
+      await invoke("add_user_image", { symbol: selected.symbol, path, addedBy: "local-user" });
+      await refreshSelected();
+    } catch (e) {
+      setUploadError(String(e));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function verifyImage(imageId: number) {
+    await invoke("verify_user_image", { imageId, verifiedBy: "local-user" });
+    await refreshSelected();
+  }
+
+  async function removeImage(imageId: number) {
+    await invoke("delete_user_image", { imageId });
+    setUserImageData((prev) => {
+      const next = { ...prev };
+      delete next[imageId];
+      return next;
+    });
+    await refreshSelected();
   }
 
   async function submitClaim(e: React.FormEvent) {
@@ -171,7 +227,8 @@ function App() {
     await refreshSelected();
   }
 
-  const usableImages = selected?.images.filter((i) => i.is_public_domain) ?? [];
+  const usableImages = selected?.images.filter((i) => i.source === "usda_plants" && i.is_public_domain) ?? [];
+  const userPhotos = selected?.images.filter((i) => i.source === "user_upload") ?? [];
   const claimsByCategory = (selected?.claims ?? []).reduce<Record<string, ClaimInfo[]>>((acc, c) => {
     (acc[c.category] ??= []).push(c);
     return acc;
@@ -350,6 +407,47 @@ function App() {
                   {selected.images.length > 0 ? " (all existing photos are copyrighted)." : "."}
                 </p>
               )}
+
+              <section className="user-photos-section">
+                <h3>Your Photos</h3>
+                <p className="form-note">
+                  A photo you add here is a claim that this is what the species looks
+                  like, same as a text claim — it starts unverified, and nothing here
+                  makes it a confirmed identification by itself.
+                </p>
+                {userPhotos.length > 0 && (
+                  <div className="images">
+                    {userPhotos.map((img) => (
+                      <figure key={img.id} className={img.verified ? "verified" : "unverified"}>
+                        {userImageData[img.id] ? (
+                          <img src={userImageData[img.id]} alt="user-submitted" loading="lazy" />
+                        ) : (
+                          <div className="image-loading">Loading…</div>
+                        )}
+                        <figcaption>
+                          <span className={`claim-status ${img.verified ? "status-verified" : "status-unverified"}`}>
+                            {img.verified ? "Verified" : "Unverified"}
+                          </span>
+                          <div className="user-photo-actions">
+                            {!img.verified && (
+                              <button type="button" onClick={() => verifyImage(img.id)}>
+                                Verify
+                              </button>
+                            )}
+                            <button type="button" className="danger" onClick={() => removeImage(img.id)}>
+                              Remove
+                            </button>
+                          </div>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+                <button type="button" onClick={uploadPhoto} disabled={uploadingPhoto}>
+                  {uploadingPhoto ? "Adding…" : "+ Add your own photo"}
+                </button>
+                {uploadError && <p className="error-text">{uploadError}</p>}
+              </section>
 
               <section className="claims-section">
                 <h3>Claims</h3>

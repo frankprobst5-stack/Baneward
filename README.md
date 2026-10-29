@@ -64,9 +64,10 @@ Poison Centers) as a sanity check, not a bulk data source.
 **A real, working app.** All 35,326 real US species from USDA PLANTS are ingested and
 ship bundled inside the app itself — it runs standalone, with the data already there, the
 same way [WayStation](https://github.com/frankprobst5-stack/WayStation) does. Search,
-species detail, and the unverified-by-default tagging mechanism all work and are verified
-live. Not yet done: Citadel integration, local AI search, and caching real image bytes
-instead of live USDA URLs. See [ROADMAP.md](ROADMAP.md) for the real detail.
+species detail, the unverified-by-default claims system, and now adding your own photo to
+a species (same unverified-by-default rule) all work and are verified live. Not yet done:
+Citadel integration, local AI search, and caching real image bytes instead of live USDA
+URLs. See [ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash
 cd app

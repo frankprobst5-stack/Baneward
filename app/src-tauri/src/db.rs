@@ -82,6 +82,13 @@ fn ensure_schema(conn: &Connection) {
             source_url TEXT,
             enriched_at TEXT
         );
+        -- `source`/`verified`/`added_by`/`added_at` added for real user-uploaded
+        -- photos (data/migrate_images_schema.py) -- same rule as `claims`: an
+        -- uploaded image is a claim that a photo shows this species, and it
+        -- defaults unverified for exactly the same reason a text claim does.
+        -- Existing USDA PLANTS rows default source='usda_plants', verified=1 --
+        -- that's institutional data already tied to the right species by USDA's
+        -- own curation, not a new identification claim someone just made.
         CREATE TABLE IF NOT EXISTS images (
             id INTEGER PRIMARY KEY,
             species_symbol TEXT NOT NULL REFERENCES species(symbol),
@@ -89,7 +96,13 @@ fn ensure_schema(conn: &Connection) {
             url TEXT NOT NULL,
             is_public_domain INTEGER NOT NULL,
             photographer TEXT,
-            institution TEXT
+            institution TEXT,
+            source TEXT NOT NULL DEFAULT 'usda_plants',
+            verified INTEGER NOT NULL DEFAULT 1,
+            added_by TEXT,
+            added_at TEXT,
+            verified_by TEXT,
+            verified_at TEXT
         );
         -- Replaces the old `tags` table (migrated by
         -- data/migrate_claims_schema.py, not recreated from scratch --
