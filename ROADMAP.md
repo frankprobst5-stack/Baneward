@@ -3,19 +3,20 @@
 Real, dated, honest about what's done vs. planned — same discipline every other project in
 the [Citadel Ecosystem](https://github.com/frankprobst5-stack/citadel-ecosystem) uses.
 
-## Where things stand (2026-10-29)
+## Where things stand (2026-10-30)
 
 Repo created, name chosen (`Baneward` — "bane" = poison, as in wolfsbane/henbane, + "ward" =
 guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0 is fully
 done**: all 35,326 real US species are enriched and sitting in a real local database, zero
 failures, verified against live sources throughout — not assumed. Two of the three
 originally-planned sources turned out not to hold up on direct verification; the plan was
-corrected in response, not papered over. Phases 1 through 1.9 are also done: a real
+corrected in response, not papered over. Phases 1 through 1.10 are also done: a real
 standalone Tauri app (matching WayStation's stack), synonym/characteristic search data,
 51,580 real ethnobotanical claims, 3,001 real documented chemicals with their lab
-bioactivities, a real "add your own photo" feature, and a prototyped iNaturalist image
-pipeline (64 real cached community photos, full-scale decision pending) — all unverified
-by default, same rule throughout. See below for the full detail.
+bioactivities, a real "add your own photo" feature, and now real photo coverage for
+**22,470 of 35,326 species (63.6%)** via a bulk iNaturalist image pipeline — after the
+live-API approach hit real rate-limiting and had to be abandoned mid-run, not hidden. All
+unverified by default, same rule throughout. See below for the full detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -431,6 +432,61 @@ per-species API would take on the order of 7-8 hours sequential; a real full-sca
 should likely use the bulk Open Data metadata dump instead (confirmed public and real in
 Phase 1.8's own verification) rather than one API call per species. Not attempted here —
 a real decision for Frank given the size jump, not something to default into.
+
+## Phase 1.10 — Full-scale image coverage: a real live-API failure, then the bulk dump ✅ done 2026-10-30
+
+Frank's call: go ahead and scale to all remaining zero-image species. **Real honest
+sequence, not a clean straight line**: the live per-species API (Phase 1.9's own script)
+was launched first against all ~27,650 species, same mechanism that worked for the
+prototype, just bigger. It worked cleanly for a while — 5,215 real images cached, 0
+errors — but after ~18 hours of continuous querying, iNaturalist's API started returning
+sustained 429s (1,576 of ~9,750 requests, a real and growing fraction, not a blip). The
+degraded rate stabilized rather than collapsing, but projected out to **~2.5 more days**
+for the remaining species — a real, substantial cost nobody had signed up for. Stopped the
+live-API run there rather than let it grind for days; its 5,215 real images stayed
+committed, nothing lost.
+
+**Real switch to the bulk Open Data dump**, verified column-by-column before committing to
+anything: `taxa.csv.gz` (39MB), `observers.csv.gz` (20MB), `observations.csv.gz` (13.7GB),
+`photos.csv.gz` (21.1GB) — real sizes confirmed against the live bucket, real columns
+confirmed via byte-range peeks before downloading the two big files in full (`tar`-listing
+a multi-GB gzip stream isn't actually cheaper than downloading it, so a byte-range peek at
+just the header was the real way to check structure first). A quick 100MB throughput test
+(≈4.7MB/s real, not assumed) put the full ~35GB download at roughly 2 hours — a measured
+number, not a guess, before committing to it.
+
+**`data/ingest_inaturalist_bulk.py`, four real stages, each one streaming pass, each
+resumable**: matched 15,362 of the 17,220 still-unresolved zero-image species against an
+active iNaturalist `taxon_id` (`taxa.csv.gz`); streamed all ~280M rows of
+`observations.csv.gz` once (14.2 min) to keep only research-grade observations of a
+matched taxon (8.2M kept, covering 12,365 of the 15,362 — a real, honest ceiling, not every
+matched taxon has a research-grade observation at all); streamed all ~500M rows of
+`photos.csv.gz` once (25.6 min) to pick the first CC0/CC-BY photo per taxon (9,580
+resolved); fetched each one's real bytes directly from S3's static photo URLs — the same
+URLs the live-API script already used, not the throttled REST endpoint, so this stage hit
+**zero rate-limit errors** across all 15,362 species checked. Real end-to-end run time:
+about 2 hours download + 40 minutes processing + a few minutes of fetching, matching the
+~3-hour estimate given before starting, not the 2.5 days the live-API path was facing.
+
+**Real final numbers, combining both runs**: **14,795 total iNaturalist-sourced images**
+(5,215 from the live-API run before it was stopped + 9,580 from the bulk run), real average
+131.6KB each, 1.95GB of real cached image bytes, zero insert errors across the whole
+session. **22,470 of 35,326 species (63.6%) now have at least one usable image**, up from
+7,676 (21.7%) before this phase — real species still with none: 12,856, down from 27,650.
+Spot-checked: real JPEG magic bytes confirmed on a sample row, a real uppercase `.JPG`
+extension variant found in the wild and confirmed already handled by the existing
+lowercase-normalizing Rust code, no new code path needed.
+
+**Real cost worth stating plainly**: the master database is now **1.9GB** (was 67MB before
+this phase) and the bundled app resource grew to match. Pushing this to GitHub via Git LFS
+consumes roughly 19% of the account's 10GB free LFS storage quota in this one file — a
+real, current constraint on how much further this specific approach can scale before
+needing a paid LFS tier or a different distribution strategy (e.g. the tiered
+core/regional/complete download modes already logged as an idea against the original
+USDA image-caching gap, which now applies here too).
+
+Live running app and bundled resource both resynced and verified healthy (same three-step
+process as every prior phase) before any of this was pushed.
 
 ## v2 — Discovery & UX pass (planned, not started)
 
