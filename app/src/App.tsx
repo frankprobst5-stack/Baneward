@@ -142,6 +142,18 @@ interface BrowseFacet {
   options: WizardStepOption[];
 }
 
+interface FieldNoteInfo {
+  id: number;
+  species_symbol: string | null;
+  species_common_name: string | null;
+  species_scientific_name: string | null;
+  observation: string;
+  location: string | null;
+  observed_at: string | null;
+  added_by: string | null;
+  added_at: string;
+}
+
 const WIZARD_STEP_QUESTIONS: Record<string, string> = {
   "Flower Color": "What color are the flowers?",
   "Foliage Color": "What color is the foliage?",
@@ -173,6 +185,7 @@ interface SpeciesDetail {
   characteristics: CharacteristicInfo[];
   synonyms: string[];
   lookalikes: LookalikeSummary[];
+  field_notes: FieldNoteInfo[];
 }
 
 const CATEGORIES = ["poisonous", "edible", "medical", "useful"] as const;
@@ -231,6 +244,12 @@ function App() {
   const [browseSelections, setBrowseSelections] = useState<WizardSelectionEntry[]>([]);
   const [browseResults, setBrowseResults] = useState<WizardCandidate[]>([]);
   const [loadingBrowse, setLoadingBrowse] = useState(false);
+  const [fieldNotesMode, setFieldNotesMode] = useState(false);
+  const [allFieldNotes, setAllFieldNotes] = useState<FieldNoteInfo[]>([]);
+  const [loadingFieldNotes, setLoadingFieldNotes] = useState(false);
+  const [noteObservation, setNoteObservation] = useState("");
+  const [noteLocation, setNoteLocation] = useState("");
+  const [noteObservedAt, setNoteObservedAt] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -335,6 +354,7 @@ function App() {
     closePair();
     setSelected(null);
     setBrowseMode(false);
+    setFieldNotesMode(false);
     setWizardMode(true);
     setWizardStepIndex(0);
     setWizardSelections([]);
@@ -416,6 +436,7 @@ function App() {
     closePair();
     setSelected(null);
     setWizardMode(false);
+    setFieldNotesMode(false);
     setBrowseMode(true);
     setBrowseSelections([]);
     setBrowseResults([]);
@@ -442,6 +463,63 @@ function App() {
 
   async function pickBrowseCandidate(symbol: string) {
     exitBrowse();
+    await openSpecies(symbol);
+  }
+
+  async function refreshFieldNotesLog() {
+    setLoadingFieldNotes(true);
+    try {
+      const notes = await invoke<FieldNoteInfo[]>("list_field_notes");
+      setAllFieldNotes(notes);
+    } catch (e) {
+      console.error("list_field_notes failed", e);
+    } finally {
+      setLoadingFieldNotes(false);
+    }
+  }
+
+  async function startFieldNotesLog() {
+    closePair();
+    setSelected(null);
+    setWizardMode(false);
+    setBrowseMode(false);
+    setFieldNotesMode(true);
+    await refreshFieldNotesLog();
+  }
+
+  function exitFieldNotesLog() {
+    setFieldNotesMode(false);
+  }
+
+  async function submitFieldNote(e: React.FormEvent, speciesSymbol: string | null) {
+    e.preventDefault();
+    if (!noteObservation.trim()) return;
+    try {
+      await invoke("add_field_note", {
+        speciesSymbol,
+        observation: noteObservation.trim(),
+        location: noteLocation.trim() || null,
+        observedAt: noteObservedAt || null,
+        addedBy: "local-user",
+      });
+      setNoteObservation("");
+      setNoteLocation("");
+      setNoteObservedAt("");
+      if (speciesSymbol) await refreshSelected();
+      if (fieldNotesMode) await refreshFieldNotesLog();
+    } catch (e) {
+      console.error("add_field_note failed", e);
+    }
+  }
+
+  async function removeFieldNote(noteId: number, speciesSymbol: string | null) {
+    await invoke("delete_field_note", { noteId });
+    if (speciesSymbol) await refreshSelected();
+    if (fieldNotesMode) await refreshFieldNotesLog();
+  }
+
+  async function openNoteSpecies(symbol: string) {
+    exitFieldNotesLog();
     await openSpecies(symbol);
   }
 
@@ -594,6 +672,9 @@ function App() {
           </button>
           <button type="button" className="wizard-entry" onClick={startBrowse}>
             🔍 Browse the catalog by trait
+          </button>
+          <button type="button" className="wizard-entry" onClick={startFieldNotesLog}>
+            📝 My field notes
           </button>
           <ul className="results">
             {results.map((r) => (
@@ -758,7 +839,75 @@ function App() {
               )}
             </div>
           )}
-          {!wizardMode && !browseMode && (
+          {fieldNotesMode && (
+            <div className="field-notes-log">
+              <button type="button" className="back-link" onClick={exitFieldNotesLog}>
+                ✕ Exit field notes
+              </button>
+              <h2>My Field Notes</h2>
+              <p className="form-note">
+                Your own observations, not reviewed identifications — a note can exist
+                before you know what the plant is. Add one here without linking it to a
+                species, or add one from a species' own detail page to link it there.
+              </p>
+              <form className="add-claim-form" onSubmit={(e) => submitFieldNote(e, null)}>
+                <h4>Add a field note</h4>
+                <textarea
+                  placeholder="What did you see? Where, what did it look like…"
+                  value={noteObservation}
+                  onChange={(e) => setNoteObservation(e.target.value)}
+                />
+                <div className="form-row">
+                  <input
+                    placeholder="Location (optional)"
+                    value={noteLocation}
+                    onChange={(e) => setNoteLocation(e.target.value)}
+                  />
+                  <input
+                    type="date"
+                    value={noteObservedAt}
+                    onChange={(e) => setNoteObservedAt(e.target.value)}
+                  />
+                </div>
+                <button type="submit" disabled={!noteObservation.trim()}>
+                  Add field note
+                </button>
+              </form>
+
+              {loadingFieldNotes && <p>Loading…</p>}
+              {!loadingFieldNotes && allFieldNotes.length === 0 && (
+                <p className="placeholder">No field notes yet.</p>
+              )}
+              {!loadingFieldNotes && allFieldNotes.length > 0 && (
+                <ul className="claim-list">
+                  {allFieldNotes.map((note) => (
+                    <li key={note.id} className="claim">
+                      <div className="claim-head">
+                        <span className="claim-evidence">
+                          {note.species_symbol ? (
+                            <button type="button" className="lookalike-link" onClick={() => openNoteSpecies(note.species_symbol!)}>
+                              {note.species_common_name ?? note.species_scientific_name}
+                            </button>
+                          ) : (
+                            "Unidentified"
+                          )}
+                        </span>
+                        {note.observed_at && <span className="claim-status">{note.observed_at}</span>}
+                      </div>
+                      <p className="claim-description">{note.observation}</p>
+                      {note.location && <p className="claim-source">📍 {note.location}</p>}
+                      <div className="claim-actions">
+                        <button type="button" className="danger" onClick={() => removeFieldNote(note.id, note.species_symbol)}>
+                          Remove
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {!wizardMode && !browseMode && !fieldNotesMode && (
             <>
           {loadingPair && <p>Loading comparison…</p>}
           {!loadingPair && selectedPair && (
@@ -1229,6 +1378,60 @@ function App() {
                   />
                   <button type="submit" disabled={!description.trim()}>
                     Add unverified claim
+                  </button>
+                </form>
+              </section>
+
+              <section className="field-notes-section">
+                <h3>Field Notes</h3>
+                <p className="form-note">
+                  Your own observations of this species — not a reviewed claim, just a
+                  personal record of what you saw.
+                </p>
+                {selected.field_notes.length === 0 && (
+                  <p className="no-claims">No field notes for this species yet.</p>
+                )}
+                {selected.field_notes.length > 0 && (
+                  <ul className="claim-list">
+                    {selected.field_notes.map((note) => (
+                      <li key={note.id} className="claim">
+                        {note.observed_at && (
+                          <div className="claim-head">
+                            <span className="claim-status">{note.observed_at}</span>
+                          </div>
+                        )}
+                        <p className="claim-description">{note.observation}</p>
+                        {note.location && <p className="claim-source">📍 {note.location}</p>}
+                        <div className="claim-actions">
+                          <button type="button" className="danger" onClick={() => removeFieldNote(note.id, selected.symbol)}>
+                            Remove
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <form className="add-claim-form" onSubmit={(e) => submitFieldNote(e, selected.symbol)}>
+                  <h4>Add a field note</h4>
+                  <textarea
+                    placeholder="What did you see? Where, what did it look like…"
+                    value={noteObservation}
+                    onChange={(e) => setNoteObservation(e.target.value)}
+                  />
+                  <div className="form-row">
+                    <input
+                      placeholder="Location (optional)"
+                      value={noteLocation}
+                      onChange={(e) => setNoteLocation(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      value={noteObservedAt}
+                      onChange={(e) => setNoteObservedAt(e.target.value)}
+                    />
+                  </div>
+                  <button type="submit" disabled={!noteObservation.trim()}>
+                    Add field note
                   </button>
                 </form>
               </section>

@@ -171,6 +171,19 @@ pub struct LookalikeSummary {
 }
 
 #[derive(Serialize)]
+pub struct FieldNote {
+    pub id: i64,
+    pub species_symbol: Option<String>,
+    pub species_common_name: Option<String>,
+    pub species_scientific_name: Option<String>,
+    pub observation: String,
+    pub location: Option<String>,
+    pub observed_at: Option<String>,
+    pub added_by: Option<String>,
+    pub added_at: String,
+}
+
+#[derive(Serialize)]
 pub struct SpeciesDetail {
     pub symbol: String,
     pub scientific_name: String,
@@ -197,6 +210,10 @@ pub struct SpeciesDetail {
     /// score. Empty means no pair has been entered yet, not "nothing looks
     /// like this."
     pub lookalikes: Vec<LookalikeSummary>,
+    /// This user's own sightings tied to this species -- never merged into
+    /// `claims`. A field note is a personal observation, not a reviewed
+    /// fact; it has no verified/unverified state at all (see db.rs).
+    pub field_notes: Vec<FieldNote>,
 }
 
 #[tauri::command]
@@ -226,6 +243,7 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                     synonyms: Vec::new(),
                     chemicals: Vec::new(),
                     lookalikes: Vec::new(),
+                    field_notes: Vec::new(),
                 })
             },
         )
@@ -404,6 +422,30 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                 other_symbol: row.get(4)?,
                 other_common_name: row.get(5)?,
                 other_scientific_name: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut note_stmt = conn
+        .prepare(
+            "SELECT id, species_symbol, observation, location, observed_at, added_by, added_at
+             FROM field_notes WHERE species_symbol = ?1 ORDER BY added_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+    species.field_notes = note_stmt
+        .query_map(params![species.symbol], |row| {
+            Ok(FieldNote {
+                id: row.get(0)?,
+                species_symbol: row.get(1)?,
+                species_common_name: None,
+                species_scientific_name: None,
+                observation: row.get(2)?,
+                location: row.get(3)?,
+                observed_at: row.get(4)?,
+                added_by: row.get(5)?,
+                added_at: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -1284,4 +1326,79 @@ pub fn browse_facets(
         });
     }
     Ok(out)
+}
+
+/// Every field note across every species, newest first -- the standalone
+/// "My Field Notes" log, not scoped to whatever species happens to be
+/// open. Includes notes with no species link at all (a real sighting
+/// nobody's identified yet).
+#[tauri::command]
+pub fn list_field_notes(db: State<Db>) -> Result<Vec<FieldNote>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT fn.id, fn.species_symbol, s.common_name, s.scientific_name,
+                    fn.observation, fn.location, fn.observed_at, fn.added_by, fn.added_at
+             FROM field_notes fn
+             LEFT JOIN species s ON s.symbol = fn.species_symbol
+             ORDER BY fn.added_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(FieldNote {
+                id: row.get(0)?,
+                species_symbol: row.get(1)?,
+                species_common_name: row.get(2)?,
+                species_scientific_name: row.get(3)?,
+                observation: row.get(4)?,
+                location: row.get(5)?,
+                observed_at: row.get(6)?,
+                added_by: row.get(7)?,
+                added_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+/// No verified/unverified path at all, unlike every other add_* command
+/// here -- a field note isn't a claim being proposed for review, it's a
+/// personal record of what someone actually saw.
+#[tauri::command]
+pub fn add_field_note(
+    db: State<Db>,
+    species_symbol: Option<String>,
+    observation: String,
+    location: Option<String>,
+    observed_at: Option<String>,
+    added_by: Option<String>,
+) -> Result<i64, String> {
+    if observation.trim().is_empty() {
+        return Err("observation can't be empty".into());
+    }
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO field_notes (species_symbol, observation, location, observed_at, added_by)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            species_symbol,
+            observation.trim(),
+            location,
+            observed_at,
+            added_by
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+#[tauri::command]
+pub fn delete_field_note(db: State<Db>, note_id: i64) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM field_notes WHERE id = ?1", params![note_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }

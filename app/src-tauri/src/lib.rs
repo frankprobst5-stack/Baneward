@@ -65,6 +65,9 @@ pub fn run() {
             commands::wizard_search,
             commands::browse_facet_names,
             commands::browse_facets,
+            commands::list_field_notes,
+            commands::add_field_note,
+            commands::delete_field_note,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

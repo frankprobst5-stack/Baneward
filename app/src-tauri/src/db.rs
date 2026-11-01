@@ -230,6 +230,26 @@ fn ensure_schema(conn: &Connection) {
             verified_at TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_lookalike_diff_pair ON lookalike_differentiators(pair_id);
+
+        -- v2's fourth real deliverable (2026-11): a user's own sighting, not
+        -- an editorial claim -- deliberately has no `verified` column at
+        -- all, unlike every other user-contributed table in this file. A
+        -- field note is a personal record, not a fact being proposed for
+        -- review; the one thing it must never become is a quiet stand-in
+        -- for a confirmed identification, so get_species keeps it in its
+        -- own section, never merged into claims. species_symbol is
+        -- nullable on purpose -- a note can exist before anyone knows what
+        -- the plant actually is.
+        CREATE TABLE IF NOT EXISTS field_notes (
+            id INTEGER PRIMARY KEY,
+            species_symbol TEXT REFERENCES species(symbol),
+            observation TEXT NOT NULL,
+            location TEXT,
+            observed_at TEXT,
+            added_by TEXT,
+            added_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_field_notes_species ON field_notes(species_symbol);
         ",
     )
     .expect("failed to ensure schema");

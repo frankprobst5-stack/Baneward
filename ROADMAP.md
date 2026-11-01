@@ -18,12 +18,15 @@ bioactivities, a real "add your own photo" feature, and real photo coverage for
 including two real live-API rate-limiting incidents, the institutions that explicitly
 forbid automated access, and a hard GitHub 2GB-per-file wall that forced a real
 architecture split (lean core database + separate downloadable photo packs per source),
-all logged honestly rather than hidden. v2's first three real deliverables also shipped:
-curated dangerous-lookalike comparisons (poison hemlock vs. wild carrot, 7 differentiators
-each independently checked against an authoritative reference), the identification
-wizard — which also surfaced and fixed a real, previously-live bug: 18.5% of the
-characteristics table (37,175 rows) were exact duplicates from Phase 1.5's own ingest, now
-cleaned up — and a visual browse-by-trait view reusing the wizard's own filter design. All
+all logged honestly rather than hidden. **v2 — Discovery & UX pass is now fully
+complete**: curated dangerous-lookalike comparisons (poison hemlock vs. wild carrot, 7
+differentiators each independently checked against an authoritative reference), the
+identification wizard — which also surfaced and fixed a real, previously-live bug: 18.5%
+of the characteristics table (37,175 rows) were exact duplicates from Phase 1.5's own
+ingest, now cleaned up — a visual browse-by-trait view reusing the wizard's own filter
+design, and field notes (deliberately with no verified/unverified state at all — a
+personal sighting, not a claim). The Kew MPNS open question was also closed with a real,
+checked answer: no self-service bulk access exists, unlike every other source here. All
 unverified by default, same rule throughout. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
@@ -614,7 +617,7 @@ and functional, not polished). The iNaturalist pack is already close to the 2GB 
 (1.96 of 2.0GB) — real future growth of that specific source will need to either split it
 further (e.g. by first letter of genus) or stop growing it past this point.
 
-## v2 — Discovery & UX pass (planned, not started)
+## v2 — Discovery & UX pass ✅ complete 2026-11-01
 
 **v1 is everything above through Phase 1.7**: a real working app, real USDA + Dr. Duke
 data, search by name/synonym/characteristic, evidence-typed claims, documented chemistry.
@@ -631,15 +634,22 @@ Phase 1.6); what's still just an idea is scoped into v2:
   the identification wizard's.
 - **Curated dangerous-lookalike comparisons** ✅ **done 2026-11-01** — see its own write-up
   right after this list.
-- **Field notes** — a place for a user's own observations tied to a sighting (location,
-  date, photo), separate from the editorial claims system. Not designed yet, not just
-  unbuilt. Keep the user's own proposed identification visibly separate from a reviewed
-  determination, even after they pick a species from a candidate list — a field note is an
-  observation, not a confirmed ID.
-- **Kew's Medicinal Plant Names Services (MPNS)**, raised in the second review as a
-  possible additional reference source — flagged early on as needing its own license
-  check and never actually verified against the live service, unlike every other source
-  in this document. Real open item, not closed either way.
+- **Field notes** ✅ **done 2026-11-01** — see its own write-up right after the
+  browse-by-trait one above.
+- **Kew's Medicinal Plant Names Services (MPNS)** ✅ **checked directly 2026-11-01, real
+  answer, closed as not usable via this project's normal pattern.** Checked Kew's own MPNS
+  page and its data Terms of Use directly rather than leaving it open any longer. Real
+  finding: MPNS doesn't offer the kind of self-service bulk download or public API every
+  other source in this document has had — its own page lists "we can supply subsets of
+  MPNS data tailored for use in your own database" as a bespoke service, not a documented
+  endpoint, and the only self-service access is an interactive portal for one-plant-at-a-
+  time lookups. Kew's Terms of Use state dataset *metadata* is CC BY, but that's a
+  different claim from "the underlying data is freely bulk-reusable" — the license that
+  actually matters for an ingest isn't published anywhere self-service. Real next step, if
+  this is ever worth pursuing: someone emailing mpns@kew.org to request a real data subset
+  and agree real terms — a human relationship, not an automated ingest, and not something
+  to initiate without Frank's own explicit decision to pursue it. Closed as a real, honest
+  answer rather than left ambiguous.
 
 v2 doesn't block Phase 2 or 3 below, and isn't scheduled ahead of them either — it's
 committed as real scope, with no start date yet, so it survives past this session instead
@@ -779,6 +789,41 @@ and stayed healthy through the final edit. No new data or schema needed — this
 pure backend/frontend logic reusing Phase 1.5's existing characteristics data and the
 wizard's own filter design, so nothing needed resyncing to the live app or bundled
 resource.
+
+### v2's fourth and final real deliverable: field notes ✅ done 2026-11-01 — **v2 complete**
+
+A real, deliberate structural difference from every other user-contributed table in this
+project: `field_notes` has no `verified` column at all. A field note is a personal
+sighting, not a fact proposed for review — there's nothing to verify, and giving it a
+review state would risk it quietly being treated like a claim. `get_species` keeps it in
+its own section, never merged into `claims`. `species_symbol` is nullable on purpose: a
+note can exist before anyone knows what the plant actually is, matching the real original
+ask ("a place for a user's own observations tied to a sighting... separate from the
+editorial claims system").
+
+**Real UI, two real entry points**: a standalone "My Field Notes" log (new entry button
+next to the wizard/browse ones) showing every note across every species chronologically,
+including unlinked ones labeled "Unidentified," with an add-note form that doesn't require
+a species link at all. And a "Field Notes" section on each species' own detail page,
+scoped to that species, for notes added once an ID is known or suspected. Both forms share
+the same real fields: observation (free text), location (optional), and the real date
+observed (not just when the note was added to the app — `observed_at` vs `added_at` are
+kept genuinely separate).
+
+Verified the real SQL directly against a scratch database before trusting it: inserted a
+species-linked note and an unlinked one, confirmed the standalone log's join correctly
+resolves the linked note's species name and leaves the unlinked one's species fields null,
+confirmed the species-scoped query only returns that species' own notes, confirmed delete
+removes the right row. `cargo check` and `npm run build` both clean, schema applied to the
+master db, the live app's db, and the bundled resource, live dev app rebuilt and stayed
+healthy.
+
+**v2 — Discovery & UX pass is now fully done**: identification wizard, visual
+browse-by-trait, curated dangerous-lookalike comparisons, and field notes all shipped,
+plus the Kew MPNS question closed with a real, checked answer rather than left open. Every
+item from the original two outside reviews that survived critical review has either
+shipped or been closed with a real, honest finding — nothing from that list is still
+sitting ambiguous.
 
 ## Phase 2 — Local AI search integration
 
