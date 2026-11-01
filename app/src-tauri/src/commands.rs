@@ -1202,3 +1202,86 @@ pub fn wizard_search(
         .map_err(|e| e.to_string())?;
     Ok(rows)
 }
+
+/// Real facet set for the visual browse view -- the wizard's own 5 plus 3
+/// more with the same real coverage/value-count check applied (1,500+
+/// species, a clean small set of real values). Deliberately does NOT
+/// include `Toxicity`: that field is an NRCS agricultural/conservation
+/// judgment, not a verified human-safety claim (see db.rs's own note on
+/// `characteristics`), and letting someone filter-browse by it would dress
+/// it up as equivalent to the real `claims` system. It stays visible in a
+/// species' own Characteristics section, just not promoted into a filter.
+const BROWSE_FACETS: [&str; 8] = [
+    "Flower Color",
+    "Foliage Color",
+    "Shape and Orientation",
+    "Bloom Period",
+    "Fruit/Seed Color",
+    "Growth Form",
+    "Active Growth Period",
+    "Foliage Texture",
+];
+
+#[tauri::command]
+pub fn browse_facet_names() -> Vec<String> {
+    BROWSE_FACETS.iter().map(|s| s.to_string()).collect()
+}
+
+#[derive(Serialize)]
+pub struct BrowseFacet {
+    pub characteristic: String,
+    pub options: Vec<WizardStepOption>,
+}
+
+/// Real option counts for every facet at once, each computed against the
+/// candidates implied by every *other* facet's current selection (not its
+/// own) -- so switching a facet's own value still shows real counts for
+/// every option in that facet, standard faceted-search behavior, not the
+/// wizard's single-next-question model.
+#[tauri::command]
+pub fn browse_facets(
+    db: State<Db>,
+    selections: Vec<WizardSelection>,
+) -> Result<Vec<BrowseFacet>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for characteristic in BROWSE_FACETS {
+        let other: Vec<WizardSelection> = selections
+            .iter()
+            .filter(|s| s.characteristic != characteristic)
+            .map(|s| WizardSelection {
+                characteristic: s.characteristic.clone(),
+                value: s.value.clone(),
+            })
+            .collect();
+        let (where_sql, filter_params) = wizard_where_clause(&other);
+        let sql = format!(
+            "SELECT c.value, COUNT(DISTINCT s.symbol)
+             FROM species s
+             JOIN characteristics c ON c.species_symbol = s.symbol AND c.name = ?1
+             WHERE {where_sql}
+             GROUP BY c.value
+             ORDER BY COUNT(DISTINCT s.symbol) DESC"
+        );
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut all_params: Vec<&dyn rusqlite::ToSql> = vec![&characteristic];
+        for p in &filter_params {
+            all_params.push(p);
+        }
+        let options = stmt
+            .query_map(all_params.as_slice(), |row| {
+                Ok(WizardStepOption {
+                    value: row.get(0)?,
+                    count: row.get(1)?,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        out.push(BrowseFacet {
+            characteristic: characteristic.to_string(),
+            options,
+        });
+    }
+    Ok(out)
+}

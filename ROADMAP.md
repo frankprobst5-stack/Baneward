@@ -18,12 +18,13 @@ bioactivities, a real "add your own photo" feature, and real photo coverage for
 including two real live-API rate-limiting incidents, the institutions that explicitly
 forbid automated access, and a hard GitHub 2GB-per-file wall that forced a real
 architecture split (lean core database + separate downloadable photo packs per source),
-all logged honestly rather than hidden. v2's first two real deliverables also shipped:
+all logged honestly rather than hidden. v2's first three real deliverables also shipped:
 curated dangerous-lookalike comparisons (poison hemlock vs. wild carrot, 7 differentiators
-each independently checked against an authoritative reference) and the identification
+each independently checked against an authoritative reference), the identification
 wizard — which also surfaced and fixed a real, previously-live bug: 18.5% of the
 characteristics table (37,175 rows) were exact duplicates from Phase 1.5's own ingest, now
-cleaned up. All unverified by default, same rule throughout. See below for detail.
+cleaned up — and a visual browse-by-trait view reusing the wizard's own filter design. All
+unverified by default, same rule throughout. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -626,11 +627,8 @@ Phase 1.6); what's still just an idea is scoped into v2:
 
 - **Identification wizard** ✅ **done 2026-11-01** — see its own write-up right after the
   lookalike-comparison one above.
-- **Visual, filterable plant browser** — browse by trait instead of typing a search term.
-  Same situation: the data exists, the browse-by-feature UI doesn't. Same `unknown`-vs-
-  `absent` requirement applies, and any coverage count shown next to a filter has to be a
-  real live query against the database, not a hardcoded "5.8%" that drifts as more
-  characteristic data gets added later.
+- **Visual, filterable plant browser** ✅ **done 2026-11-01** — see its own write-up after
+  the identification wizard's.
 - **Curated dangerous-lookalike comparisons** ✅ **done 2026-11-01** — see its own write-up
   right after this list.
 - **Field notes** — a place for a user's own observations tied to a sighting (location,
@@ -749,6 +747,38 @@ live app's own copy), the filter logic spot-checked directly (mismatch excluded,
 kept, confirmed-count correctly bounded at or below the number of real selections made —
 not the inflated 25-per-row figure the duplicate data was producing before the fix), the
 live dev app rebuilt and stayed healthy through every change.
+
+### v2's third real deliverable: visual browse-by-trait ✅ done 2026-11-01
+
+The wizard is guided and sequential; this is the exploratory counterpart — all filters
+visible at once, any combination, any order, no imposed question sequence. Built to reuse
+the wizard's own backend almost entirely: the same `(no data for this trait OR matches the
+selected value)` filter rule, the same confirmed-vs-unknown distinction, the same
+`wizard_search` command for results — the only genuinely new piece is `browse_facets`,
+which returns live option counts for every facet at once rather than one "next question"
+at a time, each computed against the candidates implied by every *other* facet's current
+selection so switching one facet's own value still shows real counts for all its options
+(standard faceted-search behavior).
+
+**Real facet set, checked the same way as the wizard's**: the wizard's own 5 plus 3 more
+with the same real coverage/clean-value-count bar (1,500+ species, a small real value set)
+— Growth Form, Active Growth Period, Foliage Texture. **Deliberately excluded**: the
+`Toxicity` field, despite having decent coverage (1,977 species) — it's an NRCS
+agricultural/conservation judgment, not a verified human-safety claim (see `db.rs`'s own
+longstanding note on `characteristics`), and turning it into a browsable filter would
+visually dress it up as equivalent to the real `claims` system. It stays visible in a
+species' own Characteristics section, just not promoted into a filter chip.
+
+Verified the real cross-facet filtering directly before trusting it: selecting "Foliage
+Texture: Coarse" and checking the live Growth Form option counts came back correctly
+narrowed (every count ≤ its real unfiltered total, confirming the filter is actually
+applying, not just redrawing the same numbers).
+
+Verified for real: `cargo check` and `npm run build` both clean, the live dev app rebuilt
+and stayed healthy through the final edit. No new data or schema needed — this phase is
+pure backend/frontend logic reusing Phase 1.5's existing characteristics data and the
+wizard's own filter design, so nothing needed resyncing to the live app or bundled
+resource.
 
 ## Phase 2 — Local AI search integration
 

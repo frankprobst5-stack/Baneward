@@ -73,8 +73,9 @@ nothing needs the internet to render after that. A real curated dangerous-lookal
 comparison feature also ships now — poison hemlock vs. wild carrot/Queen Anne's lace,
 seeded with 7 real, sourced differentiators — plus a real identification wizard for
 finding a species by flower color, foliage color, growth form, bloom period, or fruit
-color when you don't know its name. Not yet done: Citadel, local AI search.
-See [ROADMAP.md](ROADMAP.md) for the real detail.
+color when you don't know its name — plus a visual browse-by-trait view for exploring the
+catalog freely, any combination of traits, any order. Not yet done: Citadel, local AI
+search. See [ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash
 cd app

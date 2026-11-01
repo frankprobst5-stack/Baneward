@@ -63,6 +63,8 @@ pub fn run() {
             commands::wizard_steps,
             commands::wizard_options,
             commands::wizard_search,
+            commands::browse_facet_names,
+            commands::browse_facets,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

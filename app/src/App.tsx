@@ -137,6 +137,11 @@ interface WizardSelectionEntry {
   value: string;
 }
 
+interface BrowseFacet {
+  characteristic: string;
+  options: WizardStepOption[];
+}
+
 const WIZARD_STEP_QUESTIONS: Record<string, string> = {
   "Flower Color": "What color are the flowers?",
   "Foliage Color": "What color is the foliage?",
@@ -221,6 +226,11 @@ function App() {
   const [wizardOptions, setWizardOptions] = useState<WizardStepOption[]>([]);
   const [wizardResults, setWizardResults] = useState<WizardCandidate[] | null>(null);
   const [loadingWizard, setLoadingWizard] = useState(false);
+  const [browseMode, setBrowseMode] = useState(false);
+  const [browseFacets, setBrowseFacets] = useState<BrowseFacet[]>([]);
+  const [browseSelections, setBrowseSelections] = useState<WizardSelectionEntry[]>([]);
+  const [browseResults, setBrowseResults] = useState<WizardCandidate[]>([]);
+  const [loadingBrowse, setLoadingBrowse] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -324,6 +334,7 @@ function App() {
   async function startWizard() {
     closePair();
     setSelected(null);
+    setBrowseMode(false);
     setWizardMode(true);
     setWizardStepIndex(0);
     setWizardSelections([]);
@@ -382,6 +393,55 @@ function App() {
 
   async function pickWizardCandidate(symbol: string) {
     exitWizard();
+    await openSpecies(symbol);
+  }
+
+  async function refreshBrowse(selections: WizardSelectionEntry[]) {
+    setLoadingBrowse(true);
+    try {
+      const [facets, results] = await Promise.all([
+        invoke<BrowseFacet[]>("browse_facets", { selections }),
+        selections.length > 0 ? invoke<WizardCandidate[]>("wizard_search", { selections }) : Promise.resolve([]),
+      ]);
+      setBrowseFacets(facets);
+      setBrowseResults(results);
+    } catch (e) {
+      console.error("browse refresh failed", e);
+    } finally {
+      setLoadingBrowse(false);
+    }
+  }
+
+  async function startBrowse() {
+    closePair();
+    setSelected(null);
+    setWizardMode(false);
+    setBrowseMode(true);
+    setBrowseSelections([]);
+    setBrowseResults([]);
+    await refreshBrowse([]);
+  }
+
+  function exitBrowse() {
+    setBrowseMode(false);
+  }
+
+  function toggleBrowseFilter(characteristic: string, value: string) {
+    const existing = browseSelections.find((s) => s.characteristic === characteristic);
+    let next: WizardSelectionEntry[];
+    if (existing && existing.value === value) {
+      next = browseSelections.filter((s) => s.characteristic !== characteristic);
+    } else if (existing) {
+      next = browseSelections.map((s) => (s.characteristic === characteristic ? { characteristic, value } : s));
+    } else {
+      next = [...browseSelections, { characteristic, value }];
+    }
+    setBrowseSelections(next);
+    refreshBrowse(next);
+  }
+
+  async function pickBrowseCandidate(symbol: string) {
+    exitBrowse();
     await openSpecies(symbol);
   }
 
@@ -532,6 +592,9 @@ function App() {
           <button type="button" className="wizard-entry" onClick={startWizard}>
             🌿 Don't know the name? Identify by what it looks like
           </button>
+          <button type="button" className="wizard-entry" onClick={startBrowse}>
+            🔍 Browse the catalog by trait
+          </button>
           <ul className="results">
             {results.map((r) => (
               <li
@@ -629,7 +692,73 @@ function App() {
               )}
             </div>
           )}
-          {!wizardMode && (
+          {browseMode && (
+            <div className="browse">
+              <button type="button" className="back-link" onClick={exitBrowse}>
+                ✕ Exit browse
+              </button>
+              <h2>Browse by trait</h2>
+              <p className="form-note">
+                Pick any combination of traits in any order. A species with no recorded
+                data for a trait is never excluded by it — only a documented, different
+                value excludes it.
+              </p>
+              <div className="browse-facets">
+                {browseFacets.map((facet) => {
+                  const selected = browseSelections.find((s) => s.characteristic === facet.characteristic);
+                  return (
+                    <div className="browse-facet" key={facet.characteristic}>
+                      <h4>{facet.characteristic}</h4>
+                      <div className="wizard-options">
+                        {facet.options.map((opt) => (
+                          <button
+                            type="button"
+                            key={opt.value}
+                            className={`wizard-option ${selected?.value === opt.value ? "active" : ""}`}
+                            onClick={() => toggleBrowseFilter(facet.characteristic, opt.value)}
+                          >
+                            {opt.value} <span className="wizard-option-count">({opt.count})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {loadingBrowse && <p>Loading…</p>}
+              {!loadingBrowse && browseSelections.length === 0 && (
+                <p className="placeholder">Select at least one trait above to see candidates.</p>
+              )}
+              {!loadingBrowse && browseSelections.length > 0 && (
+                <>
+                  <h3>Candidates ({browseResults.length})</h3>
+                  <p className="form-note">
+                    Sorted by how many of your {browseSelections.length} selected trait
+                    {browseSelections.length !== 1 ? "s" : ""} each one actually has confirmed —
+                    "0 confirmed" means unindexed for those traits, not ruled out.
+                  </p>
+                  <ul className="results wizard-results">
+                    {browseResults.map((c) => (
+                      <li key={c.symbol} className="result" onClick={() => pickBrowseCandidate(c.symbol)}>
+                        <span className="common">{c.common_name ?? c.scientific_name}</span>
+                        <span className="sci">
+                          <i>{c.scientific_name}</i>
+                          {c.family ? ` · ${c.family}` : ""}
+                        </span>
+                        <span className="matched-via">
+                          {c.confirmed_count} of {browseSelections.length} confirmed
+                        </span>
+                        {c.has_poisonous_claim && <span className="pill pill-danger">⚠ POISONOUS</span>}
+                      </li>
+                    ))}
+                    {browseResults.length === 0 && <li className="empty">No candidates found.</li>}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+          {!wizardMode && !browseMode && (
             <>
           {loadingPair && <p>Loading comparison…</p>}
           {!loadingPair && selectedPair && (

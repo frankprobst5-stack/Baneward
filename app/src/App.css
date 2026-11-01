@@ -352,6 +352,25 @@ button.danger:hover { border-color: var(--red); color: var(--red); }
   padding: 10px 16px;
 }
 .wizard-option:hover { border-color: var(--blue); }
+.wizard-option.active { background: var(--blue); border-color: var(--blue); color: #05090d; }
+.wizard-option.active .wizard-option-count { color: #05090d; }
 .wizard-option-count { color: var(--text-muted); font-size: 0.78rem; }
 .wizard-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .wizard-results { margin-top: 10px; }
+
+.browse { display: flex; flex-direction: column; gap: 10px; }
+.browse h2 { margin: 4px 0 0; }
+.browse-facets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 4px 0 10px;
+}
+.browse-facet h4 {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--blue-bright);
+}
+.browse-facet .wizard-option { padding: 6px 12px; font-size: 0.8rem; }
