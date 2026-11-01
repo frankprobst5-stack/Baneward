@@ -612,3 +612,117 @@ pub fn read_image_bytes(path: String) -> Result<String, String> {
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(format!("data:{};base64,{}", image_mime_type(&ext), encoded))
 }
+
+/// A real per-source file size cap forced this split (2026-11): GitHub
+/// rejected pushing the bundled database once cached community photos
+/// (iNaturalist/Wikidata/Smithsonian, Phases 1.9-1.11) pushed it past
+/// 2GB -- a hard per-file LFS limit, not the account's overall quota. The
+/// bundled installer now ships without these bytes (`data/split_image_packs.py`
+/// pulls them into one file per source, each comfortably under the limit on
+/// its own); a user who wants the full offline photo set downloads the
+/// pack for a source and it gets merged into their own live database here.
+/// Real measured sizes as of the split -- update if the packs are
+/// regenerated with materially more coverage.
+const PACK_SOURCES: [(&str, &str, f64); 3] = [
+    (
+        "inaturalist",
+        "https://media.githubusercontent.com/media/frankprobst5-stack/Baneward/main/data/image_packs/inaturalist.db",
+        1950.0,
+    ),
+    (
+        "smithsonian",
+        "https://media.githubusercontent.com/media/frankprobst5-stack/Baneward/main/data/image_packs/smithsonian.db",
+        783.0,
+    ),
+    (
+        "wikidata_commons",
+        "https://media.githubusercontent.com/media/frankprobst5-stack/Baneward/main/data/image_packs/wikidata_commons.db",
+        76.0,
+    ),
+];
+
+#[derive(Serialize)]
+pub struct ImagePackStatus {
+    pub source: String,
+    pub total: i64,
+    pub downloaded: i64,
+    pub pack_size_mb: f64,
+}
+
+#[tauri::command]
+pub fn image_pack_status(db: State<Db>) -> Result<Vec<ImagePackStatus>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for (source, _url, size_mb) in PACK_SOURCES {
+        let total: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM images WHERE source=?1",
+                params![source],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        let downloaded: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM images WHERE source=?1 AND data IS NOT NULL",
+                params![source],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        out.push(ImagePackStatus {
+            source: source.to_string(),
+            total,
+            downloaded,
+            pack_size_mb: size_mb,
+        });
+    }
+    Ok(out)
+}
+
+fn image_packs_dir() -> std::path::PathBuf {
+    crate::db::data_dir().join("image_packs")
+}
+
+/// Downloads a source's pack file (if not already cached locally) and
+/// merges its bytes into the live database -- same ATTACH DATABASE
+/// pattern used all session for surgically updating a running app's data.
+/// Blocking: a pack can be close to 2GB, so this is meant to be called
+/// from the frontend with a "downloading..." state, not expected to
+/// return quickly.
+#[tauri::command]
+pub fn download_image_pack(db: State<Db>, source: String) -> Result<(), String> {
+    let (_, url, _) = PACK_SOURCES
+        .iter()
+        .find(|(s, _, _)| *s == source)
+        .ok_or_else(|| format!("unknown image pack source '{source}'"))?;
+
+    let dir = image_packs_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let pack_path = dir.join(format!("{source}.db"));
+
+    if !pack_path.exists() {
+        let tmp_path = dir.join(format!("{source}.db.part"));
+        let resp = ureq::get(url)
+            .call()
+            .map_err(|e| format!("couldn't reach pack server: {e}"))?;
+        let mut file = std::fs::File::create(&tmp_path).map_err(|e| e.to_string())?;
+        std::io::copy(&mut resp.into_reader(), &mut file).map_err(|e| e.to_string())?;
+        drop(file);
+        std::fs::rename(&tmp_path, &pack_path).map_err(|e| e.to_string())?;
+    }
+
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "ATTACH DATABASE ?1 AS pack",
+        params![pack_path.to_string_lossy()],
+    )
+    .map_err(|e| e.to_string())?;
+    let result = conn.execute(
+        "UPDATE images SET data = (SELECT data FROM pack.pack WHERE pack.pack.id = images.id)
+         WHERE source = ?1 AND data IS NULL
+           AND EXISTS (SELECT 1 FROM pack.pack WHERE pack.pack.id = images.id)",
+        params![source],
+    );
+    let _ = conn.execute("DETACH DATABASE pack", []);
+    result.map_err(|e| e.to_string())?;
+    Ok(())
+}

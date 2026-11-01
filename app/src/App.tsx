@@ -13,6 +13,19 @@ interface SpeciesSummary {
   matched_synonym: string | null;
 }
 
+interface ImagePackStatus {
+  source: string;
+  total: number;
+  downloaded: number;
+  pack_size_mb: number;
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  inaturalist: "iNaturalist (community photos)",
+  wikidata_commons: "Wikimedia Commons / Wikidata",
+  smithsonian: "Smithsonian National Museum of Natural History",
+};
+
 interface ImageInfo {
   id: number;
   url: string;
@@ -111,7 +124,31 @@ function App() {
   const [userImageData, setUserImageData] = useState<Record<number, string>>({});
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [packStatus, setPackStatus] = useState<ImagePackStatus[]>([]);
+  const [downloadingPack, setDownloadingPack] = useState<string | null>(null);
+  const [packError, setPackError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    invoke<ImagePackStatus[]>("image_pack_status")
+      .then(setPackStatus)
+      .catch((e) => console.error("image_pack_status failed", e));
+  }, []);
+
+  async function downloadPack(src: string) {
+    setDownloadingPack(src);
+    setPackError(null);
+    try {
+      await invoke("download_image_pack", { source: src });
+      const status = await invoke<ImagePackStatus[]>("image_pack_status");
+      setPackStatus(status);
+      await refreshSelected();
+    } catch (e) {
+      setPackError(String(e));
+    } finally {
+      setDownloadingPack(null);
+    }
+  }
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -228,9 +265,14 @@ function App() {
     await refreshSelected();
   }
 
+  const COMMUNITY_SOURCES = ["inaturalist", "wikidata_commons", "smithsonian"] as const;
   const usableImages = selected?.images.filter((i) => i.source === "usda_plants" && i.is_public_domain) ?? [];
   const userPhotos = selected?.images.filter((i) => i.source === "user_upload") ?? [];
-  const communityPhotos = selected?.images.filter((i) => i.source === "inaturalist") ?? [];
+  const communityPhotos = selected?.images.filter((i) => (COMMUNITY_SOURCES as readonly string[]).includes(i.source)) ?? [];
+  const communityPhotosBySource = communityPhotos.reduce<Record<string, ImageInfo[]>>((acc, img) => {
+    (acc[img.source] ??= []).push(img);
+    return acc;
+  }, {});
   const claimsByCategory = (selected?.claims ?? []).reduce<Record<string, ClaimInfo[]>>((acc, c) => {
     (acc[c.category] ??= []).push(c);
     return acc;
@@ -410,23 +452,40 @@ function App() {
                 </p>
               )}
 
-              {communityPhotos.length > 0 && (
-                <section className="community-photos-section">
-                  <h3>Community Photos (iNaturalist)</h3>
-                  <p className="form-note">
-                    Research-grade on iNaturalist — at least two independent people agreed on
-                    the identification — which is real, but it's a community ID, not USDA's
-                    own institutional data. Cached locally (CC0/CC-BY only) so it works
-                    offline; starts unverified like everything that isn't USDA's own.
-                  </p>
+              {Object.entries(communityPhotosBySource).map(([src, imgs]) => {
+                const downloaded = imgs.filter((i) => i.data_base64);
+                const notDownloaded = imgs.filter((i) => !i.data_base64);
+                const status = packStatus.find((p) => p.source === src);
+                return (
+                  <section className="community-photos-section" key={src}>
+                    <h3>Community Photos ({SOURCE_LABELS[src] ?? src})</h3>
+                    <p className="form-note">
+                      {src === "inaturalist"
+                        ? "Research-grade on iNaturalist — at least two independent people agreed on the identification — which is real, but it's a community ID, not USDA's own institutional data."
+                        : src === "smithsonian"
+                        ? "A real Smithsonian specimen record, tied to this species by GBIF's own exact taxonomic match."
+                        : "Linked via Wikidata's own taxon-to-image record, cross-checked against the genus before being accepted."}{" "}
+                      Cached locally (CC0/CC-BY only) so it works offline; starts unverified like
+                      everything that isn't USDA's own.
+                    </p>
+                    {notDownloaded.length > 0 && (
+                      <div className="pack-prompt">
+                        <p>
+                          {notDownloaded.length} more photo{notDownloaded.length !== 1 ? "s" : ""} available
+                          from {SOURCE_LABELS[src] ?? src}, not yet downloaded to this install
+                          {status ? ` (full pack ~${status.pack_size_mb >= 1000 ? (status.pack_size_mb / 1000).toFixed(1) + " GB" : Math.round(status.pack_size_mb) + " MB"})` : ""}.
+                        </p>
+                        <button type="button" onClick={() => downloadPack(src)} disabled={downloadingPack === src}>
+                          {downloadingPack === src ? "Downloading…" : `Download ${SOURCE_LABELS[src] ?? src} photo pack`}
+                        </button>
+                        {packError && downloadingPack === null && <p className="error-text">{packError}</p>}
+                      </div>
+                    )}
+                    {downloaded.length > 0 && (
                   <div className="images">
-                    {communityPhotos.map((img) => (
+                    {downloaded.map((img) => (
                       <figure key={img.id} className={img.verified ? "verified" : "unverified"}>
-                        {img.data_base64 ? (
-                          <img src={img.data_base64} alt={selected.common_name ?? selected.scientific_name} loading="lazy" />
-                        ) : (
-                          <div className="image-loading">Loading…</div>
-                        )}
+                        <img src={img.data_base64!} alt={selected.common_name ?? selected.scientific_name} loading="lazy" />
                         <figcaption>
                           <span className={`claim-status ${img.verified ? "status-verified" : "status-unverified"}`}>
                             {img.verified ? "Verified" : "Unverified"}
@@ -446,8 +505,10 @@ function App() {
                       </figure>
                     ))}
                   </div>
-                </section>
-              )}
+                    )}
+                  </section>
+                );
+              })}
 
               <section className="user-photos-section">
                 <h3>Your Photos</h3>

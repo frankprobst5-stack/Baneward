@@ -65,10 +65,12 @@ Poison Centers) as a sanity check, not a bulk data source.
 ship bundled inside the app itself — it runs standalone, with the data already there, the
 same way [WayStation](https://github.com/frankprobst5-stack/WayStation) does. Search,
 species detail, the unverified-by-default claims system, adding your own photo to a
-species, and **22,470 of 35,326 species (63.6%) now have a real, offline-cached photo** —
-USDA's own plus a real iNaturalist community-photo pipeline, bytes cached directly in the
-database so nothing needs the internet to render. Not yet done: Citadel integration, local
-AI search. See [ROADMAP.md](ROADMAP.md) for the real detail.
+species, and **26,092 of 35,326 species (73.9%) now have a real, offline-cached photo** —
+USDA's own ship with the app; real iNaturalist, Wikidata, and Smithsonian photos download
+as a separate per-source pack after install (GitHub's 2GB-per-file limit forced that split
+— see ROADMAP.md Phase 1.12), bytes cached directly in the database once downloaded so
+nothing needs the internet to render after that. Not yet done: Citadel, local AI search.
+See [ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash
 cd app

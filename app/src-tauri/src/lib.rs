@@ -51,6 +51,8 @@ pub fn run() {
             commands::verify_user_image,
             commands::delete_user_image,
             commands::read_image_bytes,
+            commands::image_pack_status,
+            commands::download_image_pack,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

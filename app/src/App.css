@@ -146,6 +146,14 @@ body { margin: 0; }
 .user-photos-section figcaption, .community-photos-section figcaption { margin-top: 4px; }
 .attribution-text { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
 .user-photo-actions { display: flex; gap: 6px; margin-top: 4px; }
+.pack-prompt {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.pack-prompt p { margin: 0 0 8px; font-size: 0.82rem; color: var(--text-muted); }
 .user-photo-actions button { padding: 3px 8px; font-size: 0.72rem; }
 .error-text { color: var(--red); font-size: 0.78rem; margin: 6px 0 0; }
 

@@ -28,3 +28,10 @@ data/ingest_full.log
 # real per-OS app data directory, outside this repo entirely) is what
 # `*.db` is actually meant to exclude.
 !app/src-tauri/resources/baneward.db
+
+# Same reasoning, 2026-11: data/split_image_packs.py (Phase 1.12) pulls
+# cached community-photo bytes out of the bundled resource into these
+# per-source files, each kept under GitHub's 2GB-per-file LFS limit.
+# download_image_pack (commands.rs) fetches them from this repo at
+# runtime -- they need to actually be here, not just reproducible.
+!data/image_packs/*.db

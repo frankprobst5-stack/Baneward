@@ -3,20 +3,23 @@
 Real, dated, honest about what's done vs. planned — same discipline every other project in
 the [Citadel Ecosystem](https://github.com/frankprobst5-stack/citadel-ecosystem) uses.
 
-## Where things stand (2026-10-30)
+## Where things stand (2026-11-01)
 
 Repo created, name chosen (`Baneward` — "bane" = poison, as in wolfsbane/henbane, + "ward" =
 guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0 is fully
 done**: all 35,326 real US species are enriched and sitting in a real local database, zero
 failures, verified against live sources throughout — not assumed. Two of the three
 originally-planned sources turned out not to hold up on direct verification; the plan was
-corrected in response, not papered over. Phases 1 through 1.10 are also done: a real
+corrected in response, not papered over. Phases 1 through 1.12 are also done: a real
 standalone Tauri app (matching WayStation's stack), synonym/characteristic search data,
 51,580 real ethnobotanical claims, 3,001 real documented chemicals with their lab
-bioactivities, a real "add your own photo" feature, and now real photo coverage for
-**22,470 of 35,326 species (63.6%)** via a bulk iNaturalist image pipeline — after the
-live-API approach hit real rate-limiting and had to be abandoned mid-run, not hidden. All
-unverified by default, same rule throughout. See below for the full detail.
+bioactivities, a real "add your own photo" feature, and real photo coverage for
+**26,092 of 35,326 species (73.9%)** via iNaturalist, Wikidata, and Smithsonian pipelines —
+including two real live-API rate-limiting incidents, the institutions that explicitly
+forbid automated access, and a hard GitHub 2GB-per-file wall that forced a real
+architecture split (lean core database + separate downloadable photo packs per source),
+all logged honestly rather than hidden. All unverified by default, same rule throughout.
+See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -487,6 +490,124 @@ USDA image-caching gap, which now applies here too).
 
 Live running app and bundled resource both resynced and verified healthy (same three-step
 process as every prior phase) before any of this was pushed.
+
+## Phase 1.11 — Two more real sources, after confirming most of GBIF's hosts can't be used
+
+Frank's question after Phase 1.10: "is there a way to get to 100%?" Honest answer, backed
+by the real numbers the bulk pipeline left behind: no, not fully — roughly 1,900 of the
+remaining species have no matching taxon on iNaturalist at all, ~3,000 have a taxon but no
+community-verified observation, and ~2,800 have a verified observation but no permissively
+licensed photo. That's a real floor, not a search problem. Frank asked to pursue whatever
+sources would actually help anyway.
+
+**Checked GBIF as a broader institutional source before building anything — found a real
+reason not to use most of it.** GBIF aggregates image records from dozens of independent
+herbaria and museums, not one bulk-friendly host like iNaturalist. Checked robots.txt and
+access policy for the hosts that showed up in real sample results: California Academy of
+Sciences explicitly states automated bulk access is not permitted, even on content its own
+metadata marks CC0. Naturalis's robots.txt explicitly disallows the `anthropic-ai` user
+agent by name. New York Botanical Garden returns 403 Forbidden on its own robots.txt. Paris's
+natural history museum sits behind an active Cloudflare bot challenge. Only Smithsonian
+(`collections.nmnh.si.edu`) checked out clean — permissive robots.txt, a real image fetched
+successfully. **Scoped GBIF usage to Smithsonian only, by design, not by oversight.**
+
+**Also checked Wikimedia Commons' own free-text search before trusting it, and found a real
+accuracy problem, not just a coverage one.** A quoted-phrase search for "Arthrocnemum
+subterminale" returned a photo titled for the unrelated genus *Arthroceras*; "Rhizocarpon
+lavatum" (a lichen) returned a figure from an entirely different fungal order. MediaWiki's
+search does fuzzy relevance matching, not exact identification — unsafe to build on directly
+for a database whose whole point is correct identification. Switched to Wikidata's
+structured `P225` (taxon name) → `P18` (image) property instead, which isn't pure free text,
+but still cross-checked each candidate's own filename for the genus before accepting (the
+*Arthroceras* mismatch turned out to trace back to a bad link on the Wikidata item itself,
+not just bad search — real insurance against the same kind of error wherever it originates).
+
+**Real measured yield on a 25-species sample of species the iNaturalist pipeline couldn't
+resolve**: Wikidata 16%, Smithsonian 12%, some overlap — nowhere near iNaturalist's own
+hit rate, because what's left is disproportionately lichens, mosses, and rare local
+endemics that are thinly documented everywhere, not just on one platform. A first pass also
+found Wikidata's `P18` images average **2.2MB** (full-resolution Commons originals) against
+every other source's ~100-250KB — fixed by requesting Commons' own 500px thumbnail
+(`iiurlwidth`) instead, averaging 91KB after the fix; the 8 oversized rows from before the
+fix were deleted and correctly re-resolved, not left in.
+
+**Real full-scale run, `data/ingest_secondary_images.py` against all 12,788 remaining
+zero-image species**: GBIF's occurrence-search endpoint started sustained rate-limiting
+partway through — the same kind of real-world throttling iNaturalist's REST API hit in
+Phase 1.10, this time against a different API. Unlike that first time, retry/backoff was
+built in from the start (the lesson was fresh), so this run never lost data or stalled —
+it just ran slower than planned, roughly 21.8 hours instead of the ~4.6-hour clean-rate
+estimate. **807 Wikidata images + 2,747 Smithsonian images found, only 10 real errors
+(transient network resets/timeouts) out of 12,788 species checked, all ten safely retryable
+on a future run since they were never written to the "no match" cache.**
+
+**Real final numbers**: **26,092 of 35,326 species (73.9%) now have at least one usable
+image**, up from 22,470 (63.6%) before this phase. Database grown to **2.7GB** (was 1.9GB).
+
+**Real correction to Phase 1.10's own cost estimate, found while preparing to push this
+phase**: that phase said pushing its database consumed "roughly 19%" of the account's 10GB
+free Git LFS quota — true only for that one version in isolation. GitHub LFS keeps every
+historically pushed version of a tracked file by default, with no automatic pruning; the
+real cumulative total across all 7 versions pushed so far for this one file is **2.33GB**,
+and this phase's own version adds another **2.89GB** — **5.22GB, 52% of the free quota,
+from this single file's version history alone.** Flagged to Frank before pushing rather
+than discovered later, since it's a real, current constraint on how many more full-database
+replacements this project can push before needing either a paid LFS tier, a history rewrite
+to reclaim old versions (a real, deliberate, disruptive decision — not done unilaterally),
+or a genuinely different distribution strategy for images going forward.
+
+## Phase 1.12 — Split the image cache out of the bundled database; a real 2GB wall, not just a quota one
+
+The actual push attempt for Phase 1.11 didn't fail on quota — it failed outright. GitHub
+rejected the file with **"Size must be less than or equal to 2147483648"**, exactly 2GiB:
+a hard per-file Git LFS limit, separate from and more immediate than the 10GB account
+quota. Our file was 2.89GB. No amount of quota headroom fixes a per-object ceiling — this
+needed a real architecture change, not a decision about how much more to spend.
+
+Frank's call: do the real fix (a tiered core/extra-downloads split) rather than a stopgap
+that just buys a little more room under the same ceiling.
+
+**`data/split_image_packs.py`**: pulled the cached photo bytes (iNaturalist/Wikidata/
+Smithsonian, Phases 1.9-1.11) out of the main database into one file per source — each
+lands comfortably under the 2GB limit on its own (iNaturalist 1.96GB, Smithsonian 0.79GB,
+Wikidata 0.08GB), a natural boundary, not an arbitrary chunk size. The main database keeps
+every image's full metadata (url, photographer, source, verified, etc.) — only the heavy
+`data` BLOB moves out, replaced with `NULL` until a pack is downloaded. Real result:
+**main database back down to 70MB** (was 2.89GB), the same order of magnitude as Phase
+1.8, before any of this image-caching work began.
+
+**New Rust commands (`commands.rs`)**: `image_pack_status` reports each source's real
+total/downloaded counts; `download_image_pack` fetches a source's pack file (if not
+already cached locally) from this repo and merges it into the live database with the
+same `ATTACH DATABASE` + `UPDATE` pattern used all session for surgically merging new data
+— verified correct by running the exact SQL against a scratch copy of the lean database
+before trusting it in the real app (822 Wikidata rows: 822 NULL before, 0 NULL after, real
+JPEG bytes confirmed on a sample row). Added `ureq` as a new dependency for the actual
+HTTP fetch — a blocking, synchronous client, matching every other command in this codebase
+rather than introducing an async runtime for one feature.
+
+**Frontend**: generalized the single iNaturalist-only "Community Photos" section into one
+per real source present (iNaturalist, Wikidata/Commons, Smithsonian), each with its own
+real attribution copy. Where a species has photos from a pack that isn't downloaded yet,
+shows a real count and an explicit "Download the `<source>` photo pack (~size)" prompt
+instead of a broken or endlessly-loading image — the old `data_base64 ? <img> : <Loading>`
+fallback used to be accurate (every row had its bytes inline already); now a permanent
+`null` is an expected, common state, not a transient one, and the UI says so honestly.
+
+**Real care taken not to regress the already-working live app**: the live app's own
+database already has every image's bytes inline from Phases 1.9-1.11 — splitting the
+*master* database for the bundled installer must never mean splitting (and thereby
+blanking) the *already-populated* live one. Verified directly rather than assumed: all
+18,417 non-USDA images in the live app's database still have real, non-NULL bytes after
+this phase — nothing lost. The live app only needed its binary and frontend rebuilt to
+pick up the new commands; its actual data was never touched.
+
+**Not yet done**: the pack files themselves aren't pushed yet (next, right after this).
+No UI exists yet to download all three packs at once, or to see pack-download progress
+mid-transfer (today's version is a blocking call with a plain "Downloading…" state — real
+and functional, not polished). The iNaturalist pack is already close to the 2GB ceiling
+(1.96 of 2.0GB) — real future growth of that specific source will need to either split it
+further (e.g. by first letter of genus) or stop growing it past this point.
 
 ## v2 — Discovery & UX pass (planned, not started)
 

@@ -1,1 +1,2 @@
 app/src-tauri/resources/*.db filter=lfs diff=lfs merge=lfs -text
+data/image_packs/*.db filter=lfs diff=lfs merge=lfs -text
