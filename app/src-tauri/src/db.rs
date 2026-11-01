@@ -186,6 +186,50 @@ fn ensure_schema(conn: &Connection) {
         );
         CREATE INDEX IF NOT EXISTS idx_species_chemicals_species ON species_chemicals(species_symbol);
         CREATE INDEX IF NOT EXISTS idx_species_chemicals_chem ON species_chemicals(chemical_id);
+
+        -- Curated dangerous-lookalike comparisons (v2, 2026-11), per real
+        -- outside-review feedback: deliberately a reviewed registry of
+        -- specific pairs, not an auto-generated 'similar species' feature
+        -- (the data model itself guards against that -- there's no
+        -- similarity score here, just a pair someone explicitly entered
+        -- and sourced). Same unverified-by-default rule as claims and
+        -- images: a pair or a single differentiator within it can be
+        -- entered by anyone, but only counts as reviewed once a human
+        -- explicitly verifies it. A verified pair does NOT imply every
+        -- differentiator under it is independently verified -- each one
+        -- tracks its own review status, because one bad entry (a wrong
+        -- height range, a stem-color claim that doesn't hold up) shouldn't
+        -- hide inside an otherwise-solid pair.
+        CREATE TABLE IF NOT EXISTS lookalike_pairs (
+            id INTEGER PRIMARY KEY,
+            species_a_symbol TEXT NOT NULL REFERENCES species(symbol),
+            species_b_symbol TEXT NOT NULL REFERENCES species(symbol),
+            risk_level TEXT NOT NULL CHECK(risk_level IN ('fatal','severe','moderate','mild')),
+            summary TEXT NOT NULL,
+            verified INTEGER NOT NULL DEFAULT 0,
+            added_by TEXT,
+            added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            verified_by TEXT,
+            verified_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_lookalike_pairs_a ON lookalike_pairs(species_a_symbol);
+        CREATE INDEX IF NOT EXISTS idx_lookalike_pairs_b ON lookalike_pairs(species_b_symbol);
+
+        CREATE TABLE IF NOT EXISTS lookalike_differentiators (
+            id INTEGER PRIMARY KEY,
+            pair_id INTEGER NOT NULL REFERENCES lookalike_pairs(id),
+            characteristic TEXT NOT NULL,
+            species_a_value TEXT NOT NULL,
+            species_b_value TEXT NOT NULL,
+            reliability_notes TEXT,
+            source TEXT,
+            verified INTEGER NOT NULL DEFAULT 0,
+            added_by TEXT,
+            added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            verified_by TEXT,
+            verified_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_lookalike_diff_pair ON lookalike_differentiators(pair_id);
         ",
     )
     .expect("failed to ensure schema");

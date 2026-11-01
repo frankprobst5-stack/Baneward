@@ -160,6 +160,17 @@ pub struct ChemicalInfo {
 }
 
 #[derive(Serialize)]
+pub struct LookalikeSummary {
+    pub pair_id: i64,
+    pub other_symbol: String,
+    pub other_common_name: Option<String>,
+    pub other_scientific_name: String,
+    pub risk_level: String,
+    pub summary: String,
+    pub verified: bool,
+}
+
+#[derive(Serialize)]
 pub struct SpeciesDetail {
     pub symbol: String,
     pub scientific_name: String,
@@ -181,6 +192,11 @@ pub struct SpeciesDetail {
     /// Real documented chemicals (Dr. Duke), present for ~3.9% of species
     /// (1,371 of 35,326 resolve through Duke's own taxonomy).
     pub chemicals: Vec<ChemicalInfo>,
+    /// Curated dangerous-lookalike pairs this species is part of, either
+    /// side (v2) — a reviewed registry, never an auto-generated similarity
+    /// score. Empty means no pair has been entered yet, not "nothing looks
+    /// like this."
+    pub lookalikes: Vec<LookalikeSummary>,
 }
 
 #[tauri::command]
@@ -209,6 +225,7 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                     characteristics: Vec::new(),
                     synonyms: Vec::new(),
                     chemicals: Vec::new(),
+                    lookalikes: Vec::new(),
                 })
             },
         )
@@ -364,6 +381,34 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
         .into_iter()
         .map(|name| chem_map.remove(&name).unwrap())
         .collect();
+
+    let mut look_stmt = conn
+        .prepare(
+            "SELECT lp.id, lp.risk_level, lp.summary, lp.verified,
+                    os.symbol, os.common_name, os.scientific_name
+             FROM lookalike_pairs lp
+             JOIN species os ON os.symbol = (
+                 CASE WHEN lp.species_a_symbol = ?1 THEN lp.species_b_symbol ELSE lp.species_a_symbol END
+             )
+             WHERE lp.species_a_symbol = ?1 OR lp.species_b_symbol = ?1
+             ORDER BY lp.verified DESC, lp.id",
+        )
+        .map_err(|e| e.to_string())?;
+    species.lookalikes = look_stmt
+        .query_map(params![species.symbol], |row| {
+            Ok(LookalikeSummary {
+                pair_id: row.get(0)?,
+                risk_level: row.get(1)?,
+                summary: row.get(2)?,
+                verified: row.get(3)?,
+                other_symbol: row.get(4)?,
+                other_common_name: row.get(5)?,
+                other_scientific_name: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
 
     Ok(species)
 }
@@ -724,5 +769,255 @@ pub fn download_image_pack(db: State<Db>, source: String) -> Result<(), String> 
     );
     let _ = conn.execute("DETACH DATABASE pack", []);
     result.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+const VALID_RISK_LEVELS: [&str; 4] = ["fatal", "severe", "moderate", "mild"];
+
+#[derive(Serialize)]
+pub struct LookalikeSpeciesInfo {
+    pub symbol: String,
+    pub scientific_name: String,
+    pub common_name: Option<String>,
+    pub family: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DifferentiatorInfo {
+    pub id: i64,
+    pub characteristic: String,
+    pub species_a_value: String,
+    pub species_b_value: String,
+    pub reliability_notes: Option<String>,
+    pub source: Option<String>,
+    pub verified: bool,
+    pub added_by: Option<String>,
+    pub added_at: String,
+    pub verified_by: Option<String>,
+    pub verified_at: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct LookalikePairDetail {
+    pub id: i64,
+    pub species_a: LookalikeSpeciesInfo,
+    pub species_b: LookalikeSpeciesInfo,
+    pub risk_level: String,
+    pub summary: String,
+    pub verified: bool,
+    pub added_by: Option<String>,
+    pub added_at: String,
+    pub verified_by: Option<String>,
+    pub verified_at: Option<String>,
+    /// Each differentiator carries its own `verified` status independently
+    /// of the pair's -- see db.rs's own note on why: a verified pair
+    /// shouldn't quietly launder an unreviewed differentiator.
+    pub differentiators: Vec<DifferentiatorInfo>,
+}
+
+#[tauri::command]
+pub fn get_lookalike_pair(db: State<Db>, pair_id: i64) -> Result<LookalikePairDetail, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let mut pair = conn
+        .query_row(
+            "SELECT lp.id, lp.species_a_symbol, lp.species_b_symbol, lp.risk_level, lp.summary,
+                    lp.verified, lp.added_by, lp.added_at, lp.verified_by, lp.verified_at,
+                    sa.scientific_name, sa.common_name, sa.family,
+                    sb.scientific_name, sb.common_name, sb.family
+             FROM lookalike_pairs lp
+             JOIN species sa ON sa.symbol = lp.species_a_symbol
+             JOIN species sb ON sb.symbol = lp.species_b_symbol
+             WHERE lp.id = ?1",
+            params![pair_id],
+            |row| {
+                Ok(LookalikePairDetail {
+                    id: row.get(0)?,
+                    species_a: LookalikeSpeciesInfo {
+                        symbol: row.get(1)?,
+                        scientific_name: row.get(10)?,
+                        common_name: row.get(11)?,
+                        family: row.get(12)?,
+                    },
+                    species_b: LookalikeSpeciesInfo {
+                        symbol: row.get(2)?,
+                        scientific_name: row.get(13)?,
+                        common_name: row.get(14)?,
+                        family: row.get(15)?,
+                    },
+                    risk_level: row.get(3)?,
+                    summary: row.get(4)?,
+                    verified: row.get(5)?,
+                    added_by: row.get(6)?,
+                    added_at: row.get(7)?,
+                    verified_by: row.get(8)?,
+                    verified_at: row.get(9)?,
+                    differentiators: Vec::new(),
+                })
+            },
+        )
+        .map_err(|e| format!("lookalike pair not found: {e}"))?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, characteristic, species_a_value, species_b_value, reliability_notes,
+                    source, verified, added_by, added_at, verified_by, verified_at
+             FROM lookalike_differentiators WHERE pair_id = ?1 ORDER BY id",
+        )
+        .map_err(|e| e.to_string())?;
+    pair.differentiators = stmt
+        .query_map(params![pair_id], |row| {
+            Ok(DifferentiatorInfo {
+                id: row.get(0)?,
+                characteristic: row.get(1)?,
+                species_a_value: row.get(2)?,
+                species_b_value: row.get(3)?,
+                reliability_notes: row.get(4)?,
+                source: row.get(5)?,
+                verified: row.get(6)?,
+                added_by: row.get(7)?,
+                added_at: row.get(8)?,
+                verified_by: row.get(9)?,
+                verified_at: row.get(10)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(pair)
+}
+
+/// Always inserts unverified -- same rule as `add_claim`. A pair being
+/// entered is not the same as a human having reviewed it.
+#[tauri::command]
+pub fn add_lookalike_pair(
+    db: State<Db>,
+    species_a_symbol: String,
+    species_b_symbol: String,
+    risk_level: String,
+    summary: String,
+    added_by: Option<String>,
+) -> Result<i64, String> {
+    if !VALID_RISK_LEVELS.contains(&risk_level.as_str()) {
+        return Err(format!(
+            "invalid risk_level '{risk_level}', must be one of {VALID_RISK_LEVELS:?}"
+        ));
+    }
+    if summary.trim().is_empty() {
+        return Err("summary can't be empty".into());
+    }
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO lookalike_pairs
+            (species_a_symbol, species_b_symbol, risk_level, summary, verified, added_by)
+         VALUES (?1, ?2, ?3, ?4, 0, ?5)",
+        params![species_a_symbol, species_b_symbol, risk_level, summary.trim(), added_by],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+#[tauri::command]
+pub fn verify_lookalike_pair(
+    db: State<Db>,
+    pair_id: i64,
+    verified_by: Option<String>,
+) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let changed = conn
+        .execute(
+            "UPDATE lookalike_pairs SET verified = 1, verified_by = ?2, verified_at = datetime('now')
+             WHERE id = ?1",
+            params![pair_id, verified_by],
+        )
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err(format!("no lookalike pair with id {pair_id}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_lookalike_pair(db: State<Db>, pair_id: i64) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM lookalike_differentiators WHERE pair_id = ?1",
+        params![pair_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM lookalike_pairs WHERE id = ?1", params![pair_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Always inserts unverified, independently of the pair it belongs to --
+/// see db.rs's own note on why a verified pair must not imply every
+/// differentiator under it is independently reviewed.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn add_differentiator(
+    db: State<Db>,
+    pair_id: i64,
+    characteristic: String,
+    species_a_value: String,
+    species_b_value: String,
+    reliability_notes: Option<String>,
+    source: Option<String>,
+    added_by: Option<String>,
+) -> Result<i64, String> {
+    if characteristic.trim().is_empty()
+        || species_a_value.trim().is_empty()
+        || species_b_value.trim().is_empty()
+    {
+        return Err("characteristic and both species' values are required".into());
+    }
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO lookalike_differentiators
+            (pair_id, characteristic, species_a_value, species_b_value, reliability_notes,
+             source, verified, added_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+        params![
+            pair_id,
+            characteristic.trim(),
+            species_a_value.trim(),
+            species_b_value.trim(),
+            reliability_notes,
+            source,
+            added_by
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+#[tauri::command]
+pub fn verify_differentiator(
+    db: State<Db>,
+    differentiator_id: i64,
+    verified_by: Option<String>,
+) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let changed = conn
+        .execute(
+            "UPDATE lookalike_differentiators SET verified = 1, verified_by = ?2, verified_at = datetime('now')
+             WHERE id = ?1",
+            params![differentiator_id, verified_by],
+        )
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err(format!("no differentiator with id {differentiator_id}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_differentiator(db: State<Db>, differentiator_id: i64) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM lookalike_differentiators WHERE id = ?1",
+        params![differentiator_id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }

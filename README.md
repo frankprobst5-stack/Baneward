@@ -69,7 +69,9 @@ species, and **26,092 of 35,326 species (73.9%) now have a real, offline-cached 
 USDA's own ship with the app; real iNaturalist, Wikidata, and Smithsonian photos download
 as a separate per-source pack after install (GitHub's 2GB-per-file limit forced that split
 — see ROADMAP.md Phase 1.12), bytes cached directly in the database once downloaded so
-nothing needs the internet to render after that. Not yet done: Citadel, local AI search.
+nothing needs the internet to render after that. A real curated dangerous-lookalike
+comparison feature also ships now — poison hemlock vs. wild carrot/Queen Anne's lace,
+seeded with 7 real, sourced differentiators. Not yet done: Citadel, local AI search.
 See [ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash

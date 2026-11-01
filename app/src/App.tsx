@@ -73,6 +73,58 @@ interface ChemicalInfo {
   activities: ActivityInfo[];
 }
 
+interface LookalikeSummary {
+  pair_id: number;
+  other_symbol: string;
+  other_common_name: string | null;
+  other_scientific_name: string;
+  risk_level: "fatal" | "severe" | "moderate" | "mild";
+  summary: string;
+  verified: boolean;
+}
+
+interface LookalikeSpeciesInfo {
+  symbol: string;
+  scientific_name: string;
+  common_name: string | null;
+  family: string | null;
+}
+
+interface DifferentiatorInfo {
+  id: number;
+  characteristic: string;
+  species_a_value: string;
+  species_b_value: string;
+  reliability_notes: string | null;
+  source: string | null;
+  verified: boolean;
+  added_by: string | null;
+  added_at: string;
+  verified_by: string | null;
+  verified_at: string | null;
+}
+
+interface LookalikePairDetail {
+  id: number;
+  species_a: LookalikeSpeciesInfo;
+  species_b: LookalikeSpeciesInfo;
+  risk_level: "fatal" | "severe" | "moderate" | "mild";
+  summary: string;
+  verified: boolean;
+  added_by: string | null;
+  added_at: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  differentiators: DifferentiatorInfo[];
+}
+
+const RISK_LABELS: Record<string, string> = {
+  fatal: "⚠ Fatal risk",
+  severe: "⚠ Severe risk",
+  moderate: "Moderate risk",
+  mild: "Mild risk",
+};
+
 interface SpeciesDetail {
   symbol: string;
   scientific_name: string;
@@ -88,6 +140,7 @@ interface SpeciesDetail {
   chemicals: ChemicalInfo[];
   characteristics: CharacteristicInfo[];
   synonyms: string[];
+  lookalikes: LookalikeSummary[];
 }
 
 const CATEGORIES = ["poisonous", "edible", "medical", "useful"] as const;
@@ -127,6 +180,13 @@ function App() {
   const [packStatus, setPackStatus] = useState<ImagePackStatus[]>([]);
   const [downloadingPack, setDownloadingPack] = useState<string | null>(null);
   const [packError, setPackError] = useState<string | null>(null);
+  const [selectedPair, setSelectedPair] = useState<LookalikePairDetail | null>(null);
+  const [loadingPair, setLoadingPair] = useState(false);
+  const [diffCharacteristic, setDiffCharacteristic] = useState("");
+  const [diffValueA, setDiffValueA] = useState("");
+  const [diffValueB, setDiffValueB] = useState("");
+  const [diffNotes, setDiffNotes] = useState("");
+  const [diffSource, setDiffSource] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -148,6 +208,71 @@ function App() {
     } finally {
       setDownloadingPack(null);
     }
+  }
+
+  async function openPair(pairId: number) {
+    setLoadingPair(true);
+    try {
+      const detail = await invoke<LookalikePairDetail>("get_lookalike_pair", { pairId });
+      setSelectedPair(detail);
+    } catch (e) {
+      console.error("get_lookalike_pair failed", e);
+    } finally {
+      setLoadingPair(false);
+    }
+  }
+
+  function closePair() {
+    setSelectedPair(null);
+    setDiffCharacteristic("");
+    setDiffValueA("");
+    setDiffValueB("");
+    setDiffNotes("");
+    setDiffSource("");
+  }
+
+  async function refreshPair() {
+    if (selectedPair) await openPair(selectedPair.id);
+  }
+
+  async function verifyPair(pairId: number) {
+    await invoke("verify_lookalike_pair", { pairId, verifiedBy: "local-user" });
+    await refreshPair();
+    await refreshSelected();
+  }
+
+  async function submitDifferentiator(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedPair || !diffCharacteristic.trim() || !diffValueA.trim() || !diffValueB.trim()) return;
+    try {
+      await invoke("add_differentiator", {
+        pairId: selectedPair.id,
+        characteristic: diffCharacteristic.trim(),
+        speciesAValue: diffValueA.trim(),
+        speciesBValue: diffValueB.trim(),
+        reliabilityNotes: diffNotes.trim() || null,
+        source: diffSource.trim() || null,
+        addedBy: "local-user",
+      });
+      setDiffCharacteristic("");
+      setDiffValueA("");
+      setDiffValueB("");
+      setDiffNotes("");
+      setDiffSource("");
+      await refreshPair();
+    } catch (e) {
+      console.error("add_differentiator failed", e);
+    }
+  }
+
+  async function verifyDiff(diffId: number) {
+    await invoke("verify_differentiator", { differentiatorId: diffId, verifiedBy: "local-user" });
+    await refreshPair();
+  }
+
+  async function removeDiff(diffId: number) {
+    await invoke("delete_differentiator", { differentiatorId: diffId });
+    await refreshPair();
   }
 
   useEffect(() => {
@@ -321,6 +446,124 @@ function App() {
         </div>
 
         <div className="detail-pane">
+          {loadingPair && <p>Loading comparison…</p>}
+          {!loadingPair && selectedPair && (
+            <div className="comparison">
+              <button type="button" className="back-link" onClick={closePair}>
+                ← Back to species
+              </button>
+              <h2>
+                {RISK_LABELS[selectedPair.risk_level]}: {selectedPair.species_a.common_name ?? selectedPair.species_a.scientific_name}
+                {" vs. "}
+                {selectedPair.species_b.common_name ?? selectedPair.species_b.scientific_name}
+              </h2>
+              <p className="comparison-summary">{selectedPair.summary}</p>
+              <p className="comparison-caveat">
+                No single feature below is a safe identification method on its own — check
+                multiple characteristics, and when in doubt, don't eat it.
+              </p>
+              <div className="comparison-status">
+                <span className={`claim-status ${selectedPair.verified ? "status-verified" : "status-unverified"}`}>
+                  {selectedPair.verified ? "Pair reviewed" : "Pair not yet reviewed"}
+                </span>
+                {!selectedPair.verified && (
+                  <button type="button" onClick={() => verifyPair(selectedPair.id)}>
+                    Mark pair reviewed
+                  </button>
+                )}
+              </div>
+
+              <table className="comparison-table">
+                <thead>
+                  <tr>
+                    <th>Characteristic</th>
+                    <th>
+                      <i>{selectedPair.species_a.scientific_name}</i>
+                      {selectedPair.species_a.common_name ? ` (${selectedPair.species_a.common_name})` : ""}
+                    </th>
+                    <th>
+                      <i>{selectedPair.species_b.scientific_name}</i>
+                      {selectedPair.species_b.common_name ? ` (${selectedPair.species_b.common_name})` : ""}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedPair.differentiators.map((d) => (
+                    <tr key={d.id} className={d.verified ? "verified" : "unverified"}>
+                      <td>
+                        {d.characteristic}
+                        <div className={`claim-status ${d.verified ? "status-verified" : "status-unverified"}`}>
+                          {d.verified ? "Verified" : "Unverified"}
+                        </div>
+                      </td>
+                      <td>{d.species_a_value}</td>
+                      <td>{d.species_b_value}</td>
+                      <td className="diff-meta">
+                        {d.reliability_notes && <div className="reliability-notes">{d.reliability_notes}</div>}
+                        {d.source && <div className="diff-source">{d.source}</div>}
+                        <div className="user-photo-actions">
+                          {!d.verified && (
+                            <button type="button" onClick={() => verifyDiff(d.id)}>
+                              Verify
+                            </button>
+                          )}
+                          <button type="button" className="danger" onClick={() => removeDiff(d.id)}>
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {selectedPair.differentiators.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="no-claims">
+                        No differentiators entered yet for this pair.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <form className="add-claim-form" onSubmit={submitDifferentiator}>
+                <h4>Add a differentiator</h4>
+                <p className="form-note">
+                  New differentiators start unverified, independently of the pair itself.
+                </p>
+                <input
+                  placeholder="Characteristic (e.g. stem markings)"
+                  value={diffCharacteristic}
+                  onChange={(e) => setDiffCharacteristic(e.target.value)}
+                />
+                <div className="form-row">
+                  <input
+                    placeholder={`${selectedPair.species_a.common_name ?? selectedPair.species_a.scientific_name}'s value`}
+                    value={diffValueA}
+                    onChange={(e) => setDiffValueA(e.target.value)}
+                  />
+                  <input
+                    placeholder={`${selectedPair.species_b.common_name ?? selectedPair.species_b.scientific_name}'s value`}
+                    value={diffValueB}
+                    onChange={(e) => setDiffValueB(e.target.value)}
+                  />
+                </div>
+                <input
+                  placeholder="Reliability notes (optional — e.g. 'present in all growth stages')"
+                  value={diffNotes}
+                  onChange={(e) => setDiffNotes(e.target.value)}
+                />
+                <input
+                  placeholder="Source (optional, but a real one helps verification later)"
+                  value={diffSource}
+                  onChange={(e) => setDiffSource(e.target.value)}
+                />
+                <button type="submit" disabled={!diffCharacteristic.trim() || !diffValueA.trim() || !diffValueB.trim()}>
+                  Add unverified differentiator
+                </button>
+              </form>
+            </div>
+          )}
+          {!loadingPair && !selectedPair && (
+            <>
           {loadingDetail && <p>Loading…</p>}
           {!loadingDetail && !selected && (
             <p className="placeholder">Search for a plant to see what's known about it.</p>
@@ -344,6 +587,24 @@ function App() {
                     </span>
                   ))}
                 </p>
+              )}
+
+              {selected.lookalikes.length > 0 && (
+                <div className="lookalike-warning">
+                  <strong>⚠ Often confused with:</strong>
+                  <ul>
+                    {selected.lookalikes.map((l) => (
+                      <li key={l.pair_id}>
+                        <button type="button" className="lookalike-link" onClick={() => openPair(l.pair_id)}>
+                          {l.other_common_name ?? l.other_scientific_name}
+                        </button>{" "}
+                        <span className={`risk-badge risk-${l.risk_level}`}>{RISK_LABELS[l.risk_level]}</span>
+                        {!l.verified && <span className="claim-status status-unverified"> (unreviewed)</span>}
+                        <p className="lookalike-summary">{l.summary}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
 
               <dl className="facts">
@@ -658,6 +919,8 @@ function App() {
                 </form>
               </section>
             </div>
+          )}
+            </>
           )}
         </div>
       </div>

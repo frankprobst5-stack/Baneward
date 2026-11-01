@@ -53,6 +53,13 @@ pub fn run() {
             commands::read_image_bytes,
             commands::image_pack_status,
             commands::download_image_pack,
+            commands::get_lookalike_pair,
+            commands::add_lookalike_pair,
+            commands::verify_lookalike_pair,
+            commands::delete_lookalike_pair,
+            commands::add_differentiator,
+            commands::verify_differentiator,
+            commands::delete_differentiator,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

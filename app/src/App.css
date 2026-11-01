@@ -268,4 +268,67 @@ button:hover { border-color: var(--blue); }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 button.danger:hover { border-color: var(--red); color: var(--red); }
 .add-claim-form button[type="submit"] { background: var(--blue); border-color: var(--blue); color: #05090d; align-self: flex-start; }
+
+.lookalike-warning {
+  background: rgba(224, 82, 82, 0.08);
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 16px;
+}
+.lookalike-warning strong { color: var(--red); font-size: 0.85rem; }
+.lookalike-warning ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.lookalike-link {
+  background: none;
+  border: none;
+  color: var(--blue-bright);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.risk-badge { font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; letter-spacing: 0.02em; }
+.risk-fatal, .risk-severe { background: rgba(224, 82, 82, 0.18); color: var(--red); }
+.risk-moderate { background: rgba(255, 176, 0, 0.18); color: var(--amber); }
+.risk-mild { background: rgba(91, 115, 134, 0.25); color: var(--text-muted); }
+.lookalike-summary { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); }
+
+.comparison { display: flex; flex-direction: column; gap: 10px; }
+.back-link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--blue-bright);
+  font-size: 0.82rem;
+  padding: 0;
+  cursor: pointer;
+}
+.comparison h2 { margin: 0; }
+.comparison-summary { margin: 0; font-size: 0.9rem; }
+.comparison-caveat {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--amber);
+  font-style: italic;
+}
+.comparison-status { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+.comparison-table th, .comparison-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+.comparison-table th { background: var(--bg-input); font-size: 0.78rem; }
+.comparison-table tr.unverified td:first-child { border-left: 3px solid var(--amber); }
+.comparison-table tr.verified td:first-child { border-left: 3px solid var(--green); }
+.diff-meta { font-size: 0.75rem; color: var(--text-muted); }
+.reliability-notes { margin-bottom: 4px; font-style: italic; }
+.diff-source { margin-bottom: 6px; }
 .add-claim-form button[type="submit"]:disabled { background: var(--bg-input); color: var(--text-muted); }

@@ -18,8 +18,10 @@ bioactivities, a real "add your own photo" feature, and real photo coverage for
 including two real live-API rate-limiting incidents, the institutions that explicitly
 forbid automated access, and a hard GitHub 2GB-per-file wall that forced a real
 architecture split (lean core database + separate downloadable photo packs per source),
-all logged honestly rather than hidden. All unverified by default, same rule throughout.
-See below for detail.
+all logged honestly rather than hidden. v2's first real deliverable also shipped: curated
+dangerous-lookalike comparisons, seeded with a real, sourced poison hemlock vs. wild carrot
+entry (7 differentiators, each independently checked against an authoritative reference).
+All unverified by default, same rule throughout. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -637,15 +639,8 @@ Phase 1.6); what's still just an idea is scoped into v2:
   `absent` requirement applies, and any coverage count shown next to a filter has to be a
   real live query against the database, not a hardcoded "5.8%" that drifts as more
   characteristic data gets added later.
-- **Curated dangerous-lookalike comparisons** — narrower and more useful than a general
-  species-to-species comparison tool, per the same third review: a reviewed registry of
-  specific dangerous pairs (poison hemlock vs. wild carrot/Queen Anne's lace is the obvious
-  first entry, already this project's own running example), not an auto-generated
-  "similar species" feature. Each pair's individual differentiators (stem markings, leaf
-  shape, etc.) need their own source and review status — a verified pair-level
-  relationship shouldn't imply every listed detail is independently confirmed. No
-  comparison view exists yet; today a user has to open each species separately and
-  remember the difference.
+- **Curated dangerous-lookalike comparisons** ✅ **done 2026-11-01** — see its own write-up
+  right after this list.
 - **Field notes** — a place for a user's own observations tied to a sighting (location,
   date, photo), separate from the editorial claims system. Not designed yet, not just
   unbuilt. Keep the user's own proposed identification visibly separate from a reviewed
@@ -659,6 +654,55 @@ Phase 1.6); what's still just an idea is scoped into v2:
 v2 doesn't block Phase 2 or 3 below, and isn't scheduled ahead of them either — it's
 committed as real scope, with no start date yet, so it survives past this session instead
 of living only in chat history.
+
+### v2's first real deliverable: curated dangerous-lookalike comparisons ✅ done 2026-11-01
+
+**Real schema, deliberately not an auto-generated "similar species" feature** — the data
+model itself guards against that, not just the UI copy. `lookalike_pairs` holds a specific,
+human-entered pair with its own `risk_level` (fatal/severe/moderate/mild) and overall
+summary; `lookalike_differentiators` holds each individual distinguishing feature under a
+pair, each with its **own** `verified` flag, reliability notes, and source — a verified
+pair never implies every differentiator under it is independently confirmed, the real
+problem an outside review flagged with a generic "verified relationship" design. Same
+unverified-by-default rule as claims and images throughout (`db.rs`).
+
+**Real seed content, not placeholder text** — poison hemlock (*Conium maculatum*, COMA2)
+vs. wild carrot/Queen Anne's lace (*Daucus carota*, DACA6), this project's own running
+example since Phase 0. Given the real stakes (this is literally "how do I tell these two
+plants apart so I don't die"), every differentiator was checked against a real authoritative
+source before being written down — not generated from memory, same discipline as every
+other content addition this project has made. Two real sources, fetched and read directly:
+King County, WA's own Noxious Weed Control Program page (government source, for poison
+hemlock's own description) and Illinois Wildflowers (a well-regarded botanical reference,
+for wild carrot's). Real correction this surfaced versus the popular "a single purple
+floret in the center always marks Queen Anne's lace" claim repeated across many casual
+foraging sites: Illinois Wildflowers' own text says that floret is only "sometimes" present
+and "very rarely" affects every flower in the umbel — included as a real differentiator,
+but explicitly flagged as unreliable alone rather than oversold as a reliable marker.
+
+**Seven real differentiators seeded, each independently verified**: stem markings (the
+single most reliable one — present at every growth stage per King County), stem hairiness,
+crushed-leaf/stem odor, mature height, flower-cluster center color, bracts, and root —
+each with its own reliability caveat (e.g. root and odor both require handling the plant,
+which carries a real skin-contact risk with poison hemlock specifically, so both are
+flagged as corroborating tests, not first-glance or standalone ones).
+
+**Real UI**: a species with a known dangerous lookalike shows a prominent red-bordered "⚠
+Often confused with" warning near the top of its detail view (before images, before
+claims) — real risk-level badges, unreviewed pairs marked as such. Clicking opens a
+dedicated side-by-side comparison view: both species' names, a shared safety caveat ("no
+single feature below is a safe identification method on its own"), and a table of every
+differentiator with its own verified/unverified status, reliability notes, and source —
+plus the same add/verify/remove mechanism as claims, so a household member can add a new
+differentiator (starts unverified) or review an existing one.
+
+Verified for real: `cargo check` and `npm run build` both clean, the real SQL for the
+"lookalikes for this species" query checked from both species' own perspective (`COMA2`
+correctly shows wild carrot as its lookalike, `DACA6` correctly shows poison hemlock back —
+the join has to work symmetrically, not just one direction), the live dev app rebuilt and
+stayed running through every change, schema and seed data applied to the master db, the
+live running app's db, and the bundled resource, same three-step process as every prior
+phase.
 
 ## Phase 2 — Local AI search integration
 
