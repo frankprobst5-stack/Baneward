@@ -1083,7 +1083,7 @@ pub fn wizard_steps() -> Vec<String> {
     WIZARD_STEPS.iter().map(|s| s.to_string()).collect()
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct WizardSelection {
     pub characteristic: String,
     pub value: String,
@@ -1401,4 +1401,102 @@ pub fn delete_field_note(db: State<Db>, note_id: i64) -> Result<(), String> {
     conn.execute("DELETE FROM field_notes WHERE id = ?1", params![note_id])
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[derive(Deserialize)]
+struct OllamaGenerateResponse {
+    response: String,
+}
+
+#[derive(Deserialize)]
+struct AiMatch {
+    characteristic: String,
+    value: String,
+}
+
+#[derive(Deserialize)]
+struct AiMatchesWrapper {
+    matches: Vec<AiMatch>,
+}
+
+/// Phase 2: the LLM is a semantic parser, never the safety authority (see
+/// ROADMAP.md's own real ambiguity fix on this point) -- it turns free
+/// text into the same {characteristic, value} shape the wizard/browse
+/// views already use, and nothing it returns reaches the database or a
+/// query until it's checked against real, live, currently-queryable
+/// values. A real test run while building this caught the model
+/// inventing a value ("Foliage Color: None") that was never in the
+/// vocabulary it was given -- this validation gate isn't theoretical
+/// caution, it's catching real hallucinations.
+///
+/// Runs entirely against localhost:11434 (Citadel's Off-Grid AI /
+/// Ollama) -- if that's not reachable, this command just errors, and
+/// nothing else in the app depends on it: search, the wizard, and browse
+/// all work identically with Ollama absent or off.
+#[tauri::command]
+pub fn ai_parse_description(db: State<Db>, description: String) -> Result<Vec<WizardSelection>, String> {
+    if description.trim().is_empty() {
+        return Err("description can't be empty".into());
+    }
+
+    let (vocab_lines, valid_pairs) = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        let mut vocab_lines = Vec::new();
+        let mut valid_pairs: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+        for characteristic in BROWSE_FACETS {
+            let mut stmt = conn
+                .prepare("SELECT DISTINCT value FROM characteristics WHERE name = ?1 ORDER BY value")
+                .map_err(|e| e.to_string())?;
+            let values: Vec<String> = stmt
+                .query_map(params![characteristic], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            for v in &values {
+                valid_pairs.insert((characteristic.to_string(), v.clone()));
+            }
+            vocab_lines.push(format!("{}: {}", characteristic, values.join(", ")));
+        }
+        (vocab_lines, valid_pairs)
+        // real db lock released here, before the potentially slow HTTP call
+    };
+
+    let prompt = format!(
+        "You identify plant characteristics mentioned in a description. Known characteristics and their ONLY valid values:\n{}\n\nDescription: \"{}\"\n\nFind every characteristic from the list above that applies -- only ones you're confident about, using the EXACT value text given. Respond with ONLY this JSON shape, nothing else: {{\"matches\": [{{\"characteristic\": \"...\", \"value\": \"...\"}}]}}. If nothing matches, use an empty array.",
+        vocab_lines.join("\n"),
+        description.trim().replace('"', "'"),
+    );
+
+    let body = serde_json::json!({
+        "model": "llama3.2:3b",
+        "prompt": prompt,
+        "stream": false,
+        "format": "json"
+    });
+
+    let resp = ureq::post("http://localhost:11434/api/generate")
+        .set("Content-Type", "application/json")
+        .timeout(std::time::Duration::from_secs(60))
+        .send_string(&body.to_string())
+        .map_err(|e| format!("couldn't reach the local AI (Ollama) -- is it running? {e}"))?;
+
+    let resp_text = resp
+        .into_string()
+        .map_err(|e| format!("couldn't read the AI's response: {e}"))?;
+    let parsed: OllamaGenerateResponse = serde_json::from_str(&resp_text)
+        .map_err(|e| format!("couldn't parse the AI's response: {e}"))?;
+    let wrapper: AiMatchesWrapper = serde_json::from_str(&parsed.response)
+        .map_err(|e| format!("the AI's response wasn't in the expected shape: {e}"))?;
+
+    let selections: Vec<WizardSelection> = wrapper
+        .matches
+        .into_iter()
+        .filter(|m| valid_pairs.contains(&(m.characteristic.clone(), m.value.clone())))
+        .map(|m| WizardSelection {
+            characteristic: m.characteristic,
+            value: m.value,
+        })
+        .collect();
+
+    Ok(selections)
 }

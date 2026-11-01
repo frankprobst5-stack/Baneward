@@ -380,3 +380,6 @@ button.danger:hover { border-color: var(--red); color: var(--red); }
 .field-notes-log { display: flex; flex-direction: column; gap: 10px; }
 .field-notes-log h2 { margin: 4px 0 0; }
 .field-notes-log .claim-list { margin-top: 10px; }
+
+.ai-describe { display: flex; flex-direction: column; gap: 10px; }
+.ai-describe h2 { margin: 4px 0 0; }

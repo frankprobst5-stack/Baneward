@@ -250,6 +250,10 @@ function App() {
   const [noteObservation, setNoteObservation] = useState("");
   const [noteLocation, setNoteLocation] = useState("");
   const [noteObservedAt, setNoteObservedAt] = useState("");
+  const [aiMode, setAiMode] = useState(false);
+  const [aiDescription, setAiDescription] = useState("");
+  const [aiParsing, setAiParsing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -355,6 +359,7 @@ function App() {
     setSelected(null);
     setBrowseMode(false);
     setFieldNotesMode(false);
+    setAiMode(false);
     setWizardMode(true);
     setWizardStepIndex(0);
     setWizardSelections([]);
@@ -437,6 +442,7 @@ function App() {
     setSelected(null);
     setWizardMode(false);
     setFieldNotesMode(false);
+    setAiMode(false);
     setBrowseMode(true);
     setBrowseSelections([]);
     setBrowseResults([]);
@@ -483,6 +489,7 @@ function App() {
     setSelected(null);
     setWizardMode(false);
     setBrowseMode(false);
+    setAiMode(false);
     setFieldNotesMode(true);
     await refreshFieldNotesLog();
   }
@@ -521,6 +528,41 @@ function App() {
   async function openNoteSpecies(symbol: string) {
     exitFieldNotesLog();
     await openSpecies(symbol);
+  }
+
+  function startAiDescribe() {
+    closePair();
+    setSelected(null);
+    setWizardMode(false);
+    setBrowseMode(false);
+    setFieldNotesMode(false);
+    setAiMode(true);
+    setAiDescription("");
+    setAiError(null);
+  }
+
+  function exitAiDescribe() {
+    setAiMode(false);
+  }
+
+  async function submitAiDescribe(e: React.FormEvent) {
+    e.preventDefault();
+    if (!aiDescription.trim()) return;
+    setAiParsing(true);
+    setAiError(null);
+    try {
+      const selections = await invoke<WizardSelectionEntry[]>("ai_parse_description", {
+        description: aiDescription.trim(),
+      });
+      setAiMode(false);
+      setBrowseMode(true);
+      setBrowseSelections(selections);
+      await refreshBrowse(selections);
+    } catch (e) {
+      setAiError(String(e));
+    } finally {
+      setAiParsing(false);
+    }
   }
 
   useEffect(() => {
@@ -675,6 +717,9 @@ function App() {
           </button>
           <button type="button" className="wizard-entry" onClick={startFieldNotesLog}>
             📝 My field notes
+          </button>
+          <button type="button" className="wizard-entry" onClick={startAiDescribe}>
+            🤖 Describe what you saw (local AI)
           </button>
           <ul className="results">
             {results.map((r) => (
@@ -907,7 +952,40 @@ function App() {
               )}
             </div>
           )}
-          {!wizardMode && !browseMode && !fieldNotesMode && (
+          {aiMode && (
+            <div className="ai-describe">
+              <button type="button" className="back-link" onClick={exitAiDescribe}>
+                ✕ Exit AI describe
+              </button>
+              <h2>Describe what you saw</h2>
+              <p className="form-note">
+                A local AI (your own machine's Ollama, not a cloud service) turns your
+                description into trait filters — it only recognizes flower/foliage/fruit
+                color, growth form, and bloom period, the same traits the wizard and browse
+                views use, and anything it suggests still goes through real validation
+                against the database before being used. It never identifies a species or
+                makes a safety determination by itself — it just sets up the same search
+                you could build manually, and you review the result before using it.
+              </p>
+              <form onSubmit={submitAiDescribe} className="add-claim-form">
+                <textarea
+                  placeholder="e.g. Tall plant with white umbrella-shaped flowers blooming in early summer, purple blotches on the stem…"
+                  value={aiDescription}
+                  onChange={(e) => setAiDescription(e.target.value)}
+                />
+                <button type="submit" disabled={!aiDescription.trim() || aiParsing}>
+                  {aiParsing ? "Thinking…" : "Find matching traits"}
+                </button>
+              </form>
+              {aiError && (
+                <p className="error-text">
+                  {aiError} — the rest of Baneward works fine without this; try the
+                  wizard or browse view instead.
+                </p>
+              )}
+            </div>
+          )}
+          {!wizardMode && !browseMode && !fieldNotesMode && !aiMode && (
             <>
           {loadingPair && <p>Loading comparison…</p>}
           {!loadingPair && selectedPair && (

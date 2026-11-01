@@ -27,7 +27,12 @@ ingest, now cleaned up — a visual browse-by-trait view reusing the wizard's ow
 design, and field notes (deliberately with no verified/unverified state at all — a
 personal sighting, not a claim). The Kew MPNS open question was also closed with a real,
 checked answer: no self-service bulk access exists, unlike every other source here. All
-unverified by default, same rule throughout. See below for detail.
+unverified by default, same rule throughout. **Phase 2 — local AI search is also done**:
+a local Ollama model turns a free-text description into the same trait filters the wizard
+and browse views already use, with every suggestion checked against real live data before
+being used and never auto-applied — a real test run caught the model both inventing an
+impossible value and inferring unstated facts, confirming why nothing it suggests is
+treated as final. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -825,25 +830,59 @@ item from the original two outside reviews that survived critical review has eit
 shipped or been closed with a real, honest finding — nothing from that list is still
 sitting ambiguous.
 
-## Phase 2 — Local AI search integration
+## Phase 2 — Local AI search integration ✅ done 2026-11-01
 
-Wire up search/explain against Citadel's existing Off-Grid AI (Ollama) infrastructure — not
-started, blocked on Phase 1's storage shape being real first (it is, as of Phase 1.7).
+Wire up search against Citadel's existing Off-Grid AI (Ollama) infrastructure. Checked
+real environment state before starting, rather than assuming: Ollama was genuinely
+installed and running on this machine (`localhost:11434`, two real models available,
+`llama3.2:3b` and `llama3:8b`) — Phase 2 was actually startable immediately, not blocked
+on setup.
 
-**Scope clarified 2026-10-29, a real ambiguity the third review caught in the line above**:
-"scoped to already-verified entries" could mean two different things — (a) the AI may only
-*search* species/claims that are already verified, or (b) the AI may search the full
-catalog but any *safety conclusion* it surfaces may only draw on verified claims. Only (b)
-is correct. (a) would create a real blind spot: a genuinely dangerous species whose claims
-just haven't been human-reviewed yet would become invisible to search, which is worse than
-surfacing it honestly with an "unreviewed" label. Concretely: the LLM is a semantic
-parser, not the safety authority — it turns a free-text description ("tall plant, white
-umbrella flowers, purple blotches on the stem") into a structured, schema-validated query
-against the real characteristics/claims tables; Rust executes that query deterministically
-and returns candidates plus what's verified/unverified/missing about each; the model never
-gets to write SQL, invent a column, or flip a claim's verified status itself. The app has
-to stay fully usable with Ollama absent or off — AI improves the search, it's never a
-dependency for reaching the underlying data.
+**Scope clarified 2026-10-29, a real ambiguity the third review caught**: "scoped to
+already-verified entries" could mean (a) the AI may only *search* already-verified
+species/claims, or (b) it may search the full catalog but any *safety conclusion* it
+surfaces may only draw on verified claims. Only (b) is correct — (a) would hide a
+genuinely dangerous species whose claims just haven't been reviewed yet, worse than
+surfacing it honestly as unreviewed.
+
+**Real, maximal code reuse**: the AI's entire job is turning free text into the exact same
+`{characteristic, value}` selection shape the wizard and browse views already use —
+`ai_parse_description` returns `Vec<WizardSelection>`, and the frontend feeds that straight
+into the existing browse view as pre-applied, fully editable filter chips. No new results
+UI, no new database queries beyond building the real vocabulary live from the
+`characteristics` table (same `BROWSE_FACETS` list, not a separate hardcoded one that could
+drift). `ureq` and `serde_json` were already dependencies from Phases 1.12/1.9 — zero new
+ones needed.
+
+**Real hallucinations caught while building this, not assumed as a risk**: a live test run
+against `llama3.2:3b` had the model invent `{"characteristic": "Foliage Color", "value":
+"None"}` — "None" was never a real value in the vocabulary it was given. The validation
+gate (every returned pair checked against real, live `SELECT DISTINCT value FROM
+characteristics WHERE name=?` results before being used) caught this for real, not as a
+theoretical safeguard. A second real test surfaced a subtler problem the value-level check
+*can't* catch: given "a thicket-forming plant with yellow flowers and gray-green foliage,
+blooming in late spring," the model correctly extracted 4 real, explicitly-stated facts —
+but also inferred `Fruit/Seed Color: Yellow` and `Active Growth Period: Spring`, neither of
+which the description actually said. Both were individually real, valid values (so the
+validation gate let them through), just not things the user had stated. This is exactly
+why the result is never auto-executed as a final answer — it lands in the browse view as
+removable chips the user reviews before anything is treated as a real filter, not a
+"the AI has spoken" result.
+
+**The real safety boundary, enforced structurally, not just in the prompt**: the model
+never touches SQL, a database connection, or a claim's verified status — its only output
+is JSON text, parsed and checked against real data before any of it becomes a query. The
+app stays fully usable with Ollama absent or off entirely — the wizard and browse views
+(and search) work identically either way; the AI command simply errors cleanly ("couldn't
+reach the local AI — is it running?") and the UI points back to the manual tools, never a
+hard dependency for reaching the underlying data.
+
+Verified for real: `cargo check` and `npm run build` both clean, a full end-to-end run
+against the live database and the real running Ollama instance (not just a unit-level
+mock) — real model output, real validation pass/fail, confirmed directly before trusting
+the design. New entry point: "🤖 Describe what you saw (local AI)," clearly labeled as
+local, not a cloud service, with the scope and limits stated plainly in the UI itself, not
+just in this document.
 
 ## Phase 3 — Tie into Citadel
 
