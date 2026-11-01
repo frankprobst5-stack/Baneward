@@ -32,13 +32,12 @@ a local Ollama model turns a free-text description into the same trait filters t
 and browse views already use, with every suggestion checked against real live data before
 being used and never auto-applied — a real test run caught the model both inventing an
 impossible value and inferring unstated facts, confirming why nothing it suggests is
-treated as final. **Phase 3 — tying into Citadel is mostly done**: a real tile now lives on
-the user's own actual running Citadel cockpit, verified live and screenshotted, not just
-added to a mockup — with one honest gap flagged rather than glossed over: full cold/warm
-desktop-launch behavior couldn't be confirmed from this remote session (the already-shipped
-WayStation reference app hit the identical environment limitation when tested the same
-way), so that final click-through check is a real next step on Frank's own physical
-desktop. See below for detail.
+treated as final. **Phase 3 — tying into Citadel is done**: a real tile lives on the
+user's own actual running Citadel cockpit, verified live and screenshotted, not just added
+to a mockup — and Frank himself confirmed the real click-through loads fine on his own
+physical desktop, closing the one honest gap this remote session couldn't verify itself.
+**Every phase of Baneward's own roadmap, Phase 0 through Phase 3, is now shipped and
+confirmed.** See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -890,7 +889,7 @@ the design. New entry point: "🤖 Describe what you saw (local AI)," clearly la
 local, not a cloud service, with the scope and limits stated plainly in the UI itself, not
 just in this document.
 
-## Phase 3 — Tie into Citadel ✅ mostly done 2026-11-01, one real gap flagged honestly below
+## Phase 3 — Tie into Citadel ✅ done 2026-11-01
 
 **Real correction to the 2026-10-29 design note below it**: that note assumed a Citadel
 deep link might carry a real payload (a search query) and designed a buffering/
@@ -934,9 +933,12 @@ confirmed directly: the OS-level scheme registration itself is real and correct
 (`xdg-mime query default x-scheme-handler/baneward` resolves to the real
 `baneward-handler.desktop` file), and the Rust side needs no new code at all beyond what
 Phase 1 already built, since there's no payload to parse — matching WayStation's own
-equally minimal, already-working implementation exactly. **Real next step**: have Frank
-click the real tile on his own physical desktop once, both cold and warm, to close out
-this one remaining honest gap.
+equally minimal, already-working implementation exactly.
+
+**Closed for real, 2026-11-01**: Frank clicked the real "Wild Plant Database" tile on his
+own actual physical desktop and confirmed it loads fine — the one thing this remote
+session genuinely couldn't verify itself. That's every phase on Baneward's own roadmap
+now shipped and confirmed, Phase 0 through Phase 3.
 
 ## Keeping this current
 

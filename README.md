@@ -79,9 +79,9 @@ sightings (deliberately separate from the reviewed claims system). **v2 is now f
 complete**, and so is local AI search — describe what you saw in plain language and a
 local Ollama model turns it into the same trait filters you could set manually, reviewed
 and editable before anything is searched, never a final answer by itself. **A real launch
-tile now lives on Citadel's own cockpit**, verified live; one honest gap remains — full
-cold/warm desktop-launch behavior needs a real click-through on an actual desktop to
-confirm, not just this remote session. See [ROADMAP.md](ROADMAP.md) for the real detail.
+tile now lives on Citadel's own cockpit**, and launching from it is confirmed working on a
+real desktop. **Every phase is now shipped.** See [ROADMAP.md](ROADMAP.md) for the real
+detail.
 
 ```bash
 cd app
