@@ -6,7 +6,7 @@
 use crate::db::Db;
 use base64::Engine;
 use rusqlite::params;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 #[derive(Serialize)]
@@ -1020,4 +1020,185 @@ pub fn delete_differentiator(db: State<Db>, differentiator_id: i64) -> Result<()
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Real fixed step order, picked from the actual coverage numbers checked
+/// before building this (data/baneward.db, 2026-11-01): each of these
+/// covers 1,950-2,060 of the 2,058 species with any USDA PlantCharacteristics
+/// data at all, with a clean, small set of real values -- not every
+/// characteristic name in the table is like this (most are yes/no
+/// agricultural-use flags, useless for visual identification).
+const WIZARD_STEPS: [&str; 5] = [
+    "Flower Color",
+    "Foliage Color",
+    "Shape and Orientation",
+    "Bloom Period",
+    "Fruit/Seed Color",
+];
+
+#[tauri::command]
+pub fn wizard_steps() -> Vec<String> {
+    WIZARD_STEPS.iter().map(|s| s.to_string()).collect()
+}
+
+#[derive(Deserialize)]
+pub struct WizardSelection {
+    pub characteristic: String,
+    pub value: String,
+}
+
+#[derive(Serialize)]
+pub struct WizardStepOption {
+    pub value: String,
+    pub count: i64,
+}
+
+#[derive(Serialize)]
+pub struct WizardCandidate {
+    pub symbol: String,
+    pub scientific_name: String,
+    pub common_name: Option<String>,
+    pub family: Option<String>,
+    pub has_poisonous_claim: bool,
+    /// How many of the user's selections this species actually has a
+    /// recorded, matching value for -- vs. just not being excluded because
+    /// the trait is undocumented for it. A real design requirement (see
+    /// ROADMAP.md v2): missing data is a distinct "unknown" state, never
+    /// silently the same as "confirmed." Sorted to the top, but never used
+    /// to drop a candidate -- an unindexed dangerous species must never
+    /// become invisible just because it can't be found by trait.
+    pub confirmed_count: i64,
+}
+
+/// Builds the real "keep this species" clause shared by both wizard
+/// commands below -- a species stays a candidate if, for every selection,
+/// EITHER it has no recorded value for that characteristic at all (real
+/// unknown, not a mismatch) OR its recorded value matches what was picked.
+/// This is the one rule that makes the whole feature safe to use: a
+/// strict filter would silently vanish the ~94% of species with no
+/// characteristic data the moment anyone answered a single question.
+fn wizard_where_clause(selections: &[WizardSelection]) -> (String, Vec<String>) {
+    let mut clauses = Vec::new();
+    let mut params: Vec<String> = Vec::new();
+    for sel in selections {
+        clauses.push(
+            "(NOT EXISTS (SELECT 1 FROM characteristics c WHERE c.species_symbol = s.symbol AND c.name = ?)
+              OR EXISTS (SELECT 1 FROM characteristics c WHERE c.species_symbol = s.symbol AND c.name = ? AND c.value = ?))"
+                .to_string(),
+        );
+        params.push(sel.characteristic.clone());
+        params.push(sel.characteristic.clone());
+        params.push(sel.value.clone());
+    }
+    let where_sql = if clauses.is_empty() {
+        "1=1".to_string()
+    } else {
+        clauses.join(" AND ")
+    };
+    (where_sql, params)
+}
+
+/// Real option counts for the next wizard step, computed against the
+/// candidates still standing after the user's selections so far -- not a
+/// static, drifting hardcoded list (see v2's own browse-by-feature
+/// requirement, same rule applies here).
+#[tauri::command]
+pub fn wizard_options(
+    db: State<Db>,
+    characteristic: String,
+    selections: Vec<WizardSelection>,
+) -> Result<Vec<WizardStepOption>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let (where_sql, filter_params) = wizard_where_clause(&selections);
+    let sql = format!(
+        "SELECT c.value, COUNT(DISTINCT s.symbol)
+         FROM species s
+         JOIN characteristics c ON c.species_symbol = s.symbol AND c.name = ?1
+         WHERE {where_sql}
+         GROUP BY c.value
+         ORDER BY COUNT(DISTINCT s.symbol) DESC"
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let mut all_params: Vec<&dyn rusqlite::ToSql> = vec![&characteristic];
+    for p in &filter_params {
+        all_params.push(p);
+    }
+    let rows = stmt
+        .query_map(all_params.as_slice(), |row| {
+            Ok(WizardStepOption {
+                value: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+#[tauri::command]
+pub fn wizard_search(
+    db: State<Db>,
+    selections: Vec<WizardSelection>,
+) -> Result<Vec<WizardCandidate>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let (where_sql, filter_params) = wizard_where_clause(&selections);
+
+    let confirmed_sql = if selections.is_empty() {
+        "0".to_string()
+    } else {
+        let per_selection: Vec<String> = selections
+            .iter()
+            .map(|_| "(cc.name = ? AND cc.value = ?)".to_string())
+            .collect();
+        // COUNT(DISTINCT cc.name), not COUNT(*) -- data/dedupe_characteristics.py
+        // fixed the real duplicate-row bug this was covering for (37,175
+        // duplicate rows found live, 2026-11-01), but counting distinct
+        // characteristic names is the correct query regardless: this must
+        // never exceed selections.len(), whatever state the underlying
+        // data is in.
+        format!(
+            "(SELECT COUNT(DISTINCT cc.name) FROM characteristics cc WHERE cc.species_symbol = s.symbol AND ({}))",
+            per_selection.join(" OR ")
+        )
+    };
+    let confirmed_params: Vec<String> = selections
+        .iter()
+        .flat_map(|sel| vec![sel.characteristic.clone(), sel.value.clone()])
+        .collect();
+
+    let sql = format!(
+        "SELECT s.symbol, s.scientific_name, s.common_name, s.family,
+                EXISTS(SELECT 1 FROM claims c WHERE c.species_symbol = s.symbol
+                       AND c.category = 'poisonous' AND c.verified = 1) AS has_poisonous_claim,
+                {confirmed_sql} AS confirmed_count
+         FROM species s
+         WHERE {where_sql}
+         ORDER BY confirmed_count DESC, s.common_name, s.scientific_name
+         LIMIT 200"
+    );
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let mut all_params: Vec<&dyn rusqlite::ToSql> = Vec::new();
+    for p in &confirmed_params {
+        all_params.push(p);
+    }
+    for p in &filter_params {
+        all_params.push(p);
+    }
+    let rows = stmt
+        .query_map(all_params.as_slice(), |row| {
+            Ok(WizardCandidate {
+                symbol: row.get(0)?,
+                scientific_name: row.get(1)?,
+                common_name: row.get(2)?,
+                family: row.get(3)?,
+                has_poisonous_claim: row.get(4)?,
+                confirmed_count: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
 }

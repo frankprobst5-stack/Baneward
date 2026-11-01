@@ -118,6 +118,33 @@ interface LookalikePairDetail {
   differentiators: DifferentiatorInfo[];
 }
 
+interface WizardStepOption {
+  value: string;
+  count: number;
+}
+
+interface WizardCandidate {
+  symbol: string;
+  scientific_name: string;
+  common_name: string | null;
+  family: string | null;
+  has_poisonous_claim: boolean;
+  confirmed_count: number;
+}
+
+interface WizardSelectionEntry {
+  characteristic: string;
+  value: string;
+}
+
+const WIZARD_STEP_QUESTIONS: Record<string, string> = {
+  "Flower Color": "What color are the flowers?",
+  "Foliage Color": "What color is the foliage?",
+  "Shape and Orientation": "What's the plant's growth form?",
+  "Bloom Period": "When does (or did) it bloom?",
+  "Fruit/Seed Color": "What color is the fruit or seed?",
+};
+
 const RISK_LABELS: Record<string, string> = {
   fatal: "⚠ Fatal risk",
   severe: "⚠ Severe risk",
@@ -187,6 +214,13 @@ function App() {
   const [diffValueB, setDiffValueB] = useState("");
   const [diffNotes, setDiffNotes] = useState("");
   const [diffSource, setDiffSource] = useState("");
+  const [wizardMode, setWizardMode] = useState(false);
+  const [wizardSteps, setWizardSteps] = useState<string[]>([]);
+  const [wizardStepIndex, setWizardStepIndex] = useState(0);
+  const [wizardSelections, setWizardSelections] = useState<WizardSelectionEntry[]>([]);
+  const [wizardOptions, setWizardOptions] = useState<WizardStepOption[]>([]);
+  const [wizardResults, setWizardResults] = useState<WizardCandidate[] | null>(null);
+  const [loadingWizard, setLoadingWizard] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -273,6 +307,82 @@ function App() {
   async function removeDiff(diffId: number) {
     await invoke("delete_differentiator", { differentiatorId: diffId });
     await refreshPair();
+  }
+
+  async function loadWizardOptions(characteristic: string, selections: WizardSelectionEntry[]) {
+    setLoadingWizard(true);
+    try {
+      const opts = await invoke<WizardStepOption[]>("wizard_options", { characteristic, selections });
+      setWizardOptions(opts);
+    } catch (e) {
+      console.error("wizard_options failed", e);
+    } finally {
+      setLoadingWizard(false);
+    }
+  }
+
+  async function startWizard() {
+    closePair();
+    setSelected(null);
+    setWizardMode(true);
+    setWizardStepIndex(0);
+    setWizardSelections([]);
+    setWizardResults(null);
+    try {
+      const steps = await invoke<string[]>("wizard_steps");
+      setWizardSteps(steps);
+      if (steps.length > 0) await loadWizardOptions(steps[0], []);
+    } catch (e) {
+      console.error("wizard_steps failed", e);
+    }
+  }
+
+  function exitWizard() {
+    setWizardMode(false);
+    setWizardResults(null);
+  }
+
+  async function showWizardResults(selections: WizardSelectionEntry[]) {
+    setLoadingWizard(true);
+    try {
+      const results = await invoke<WizardCandidate[]>("wizard_search", { selections });
+      setWizardResults(results);
+    } catch (e) {
+      console.error("wizard_search failed", e);
+    } finally {
+      setLoadingWizard(false);
+    }
+  }
+
+  async function chooseWizardOption(value: string | null) {
+    const characteristic = wizardSteps[wizardStepIndex];
+    const newSelections = value ? [...wizardSelections, { characteristic, value }] : wizardSelections;
+    setWizardSelections(newSelections);
+    const nextIndex = wizardStepIndex + 1;
+    if (nextIndex >= wizardSteps.length) {
+      await showWizardResults(newSelections);
+    } else {
+      setWizardStepIndex(nextIndex);
+      await loadWizardOptions(wizardSteps[nextIndex], newSelections);
+    }
+  }
+
+  function wizardGoBack() {
+    if (wizardResults) {
+      setWizardResults(null);
+      return;
+    }
+    if (wizardStepIndex === 0) return;
+    const prevIndex = wizardStepIndex - 1;
+    const trimmed = wizardSelections.slice(0, prevIndex);
+    setWizardSelections(trimmed);
+    setWizardStepIndex(prevIndex);
+    loadWizardOptions(wizardSteps[prevIndex], trimmed);
+  }
+
+  async function pickWizardCandidate(symbol: string) {
+    exitWizard();
+    await openSpecies(symbol);
   }
 
   useEffect(() => {
@@ -419,6 +529,9 @@ function App() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <button type="button" className="wizard-entry" onClick={startWizard}>
+            🌿 Don't know the name? Identify by what it looks like
+          </button>
           <ul className="results">
             {results.map((r) => (
               <li
@@ -446,6 +559,78 @@ function App() {
         </div>
 
         <div className="detail-pane">
+          {wizardMode && (
+            <div className="wizard">
+              <button type="button" className="back-link" onClick={exitWizard}>
+                ✕ Exit identification wizard
+              </button>
+              {wizardResults === null ? (
+                <>
+                  <h2>{WIZARD_STEP_QUESTIONS[wizardSteps[wizardStepIndex]] ?? wizardSteps[wizardStepIndex]}</h2>
+                  <p className="form-note">
+                    Step {wizardStepIndex + 1} of {wizardSteps.length}. A species with no recorded
+                    data for this trait stays a candidate — missing data is never treated the same
+                    as "doesn't have this."
+                  </p>
+                  {loadingWizard ? (
+                    <p>Loading…</p>
+                  ) : (
+                    <div className="wizard-options">
+                      {wizardOptions.map((opt) => (
+                        <button type="button" key={opt.value} className="wizard-option" onClick={() => chooseWizardOption(opt.value)}>
+                          {opt.value} <span className="wizard-option-count">({opt.count})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="wizard-nav">
+                    {wizardStepIndex > 0 && (
+                      <button type="button" onClick={wizardGoBack}>
+                        ← Back
+                      </button>
+                    )}
+                    <button type="button" onClick={() => chooseWizardOption(null)}>
+                      I don't know / skip this
+                    </button>
+                    <button type="button" onClick={() => showWizardResults(wizardSelections)}>
+                      See candidates so far ({wizardSelections.length} trait{wizardSelections.length !== 1 ? "s" : ""} selected)
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2>Candidates ({wizardResults.length})</h2>
+                  <p className="form-note">
+                    Sorted by how many of your {wizardSelections.length} selected trait
+                    {wizardSelections.length !== 1 ? "s" : ""} each one actually has confirmed —
+                    not a guarantee, just a starting point. A plant with "0 confirmed" wasn't
+                    excluded only because it has no recorded data for those traits.
+                  </p>
+                  <button type="button" onClick={wizardGoBack}>
+                    ← Back to questions
+                  </button>
+                  <ul className="results wizard-results">
+                    {wizardResults.map((c) => (
+                      <li key={c.symbol} className="result" onClick={() => pickWizardCandidate(c.symbol)}>
+                        <span className="common">{c.common_name ?? c.scientific_name}</span>
+                        <span className="sci">
+                          <i>{c.scientific_name}</i>
+                          {c.family ? ` · ${c.family}` : ""}
+                        </span>
+                        <span className="matched-via">
+                          {c.confirmed_count} of {wizardSelections.length} confirmed
+                        </span>
+                        {c.has_poisonous_claim && <span className="pill pill-danger">⚠ POISONOUS</span>}
+                      </li>
+                    ))}
+                    {wizardResults.length === 0 && <li className="empty">No candidates found.</li>}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+          {!wizardMode && (
+            <>
           {loadingPair && <p>Loading comparison…</p>}
           {!loadingPair && selectedPair && (
             <div className="comparison">
@@ -919,6 +1104,8 @@ function App() {
                 </form>
               </section>
             </div>
+          )}
+            </>
           )}
             </>
           )}

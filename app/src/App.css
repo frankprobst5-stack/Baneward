@@ -332,3 +332,26 @@ button.danger:hover { border-color: var(--red); color: var(--red); }
 .reliability-notes { margin-bottom: 4px; font-style: italic; }
 .diff-source { margin-bottom: 6px; }
 .add-claim-form button[type="submit"]:disabled { background: var(--bg-input); color: var(--text-muted); }
+
+.wizard-entry {
+  width: 100%;
+  margin-bottom: 10px;
+  text-align: left;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.wizard { display: flex; flex-direction: column; gap: 10px; }
+.wizard h2 { margin: 4px 0 0; }
+.wizard-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.wizard-option {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  font-size: 0.88rem;
+  padding: 10px 16px;
+}
+.wizard-option:hover { border-color: var(--blue); }
+.wizard-option-count { color: var(--text-muted); font-size: 0.78rem; }
+.wizard-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.wizard-results { margin-top: 10px; }

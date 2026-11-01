@@ -71,7 +71,9 @@ as a separate per-source pack after install (GitHub's 2GB-per-file limit forced 
 — see ROADMAP.md Phase 1.12), bytes cached directly in the database once downloaded so
 nothing needs the internet to render after that. A real curated dangerous-lookalike
 comparison feature also ships now — poison hemlock vs. wild carrot/Queen Anne's lace,
-seeded with 7 real, sourced differentiators. Not yet done: Citadel, local AI search.
+seeded with 7 real, sourced differentiators — plus a real identification wizard for
+finding a species by flower color, foliage color, growth form, bloom period, or fruit
+color when you don't know its name. Not yet done: Citadel, local AI search.
 See [ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash

@@ -18,10 +18,12 @@ bioactivities, a real "add your own photo" feature, and real photo coverage for
 including two real live-API rate-limiting incidents, the institutions that explicitly
 forbid automated access, and a hard GitHub 2GB-per-file wall that forced a real
 architecture split (lean core database + separate downloadable photo packs per source),
-all logged honestly rather than hidden. v2's first real deliverable also shipped: curated
-dangerous-lookalike comparisons, seeded with a real, sourced poison hemlock vs. wild carrot
-entry (7 differentiators, each independently checked against an authoritative reference).
-All unverified by default, same rule throughout. See below for detail.
+all logged honestly rather than hidden. v2's first two real deliverables also shipped:
+curated dangerous-lookalike comparisons (poison hemlock vs. wild carrot, 7 differentiators
+each independently checked against an authoritative reference) and the identification
+wizard — which also surfaced and fixed a real, previously-live bug: 18.5% of the
+characteristics table (37,175 rows) were exact duplicates from Phase 1.5's own ingest, now
+cleaned up. All unverified by default, same rule throughout. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -622,18 +624,8 @@ What those reviews got right and is already real is folded into v1 above
 (characteristics/synonym search data in Phase 1.5, the evidence-type claims model in
 Phase 1.6); what's still just an idea is scoped into v2:
 
-- **Identification wizard** — step through observable traits (flower color, leaf shape,
-  habitat) to narrow down a species without knowing its name first. Phase 1.5 shipped the
-  underlying data (200,872 characteristic rows across 2,058 of 35,326 species — 5.8%) and
-  wired it into text search, but nobody's built the actual guided, step-by-step UI yet —
-  real data, no wizard yet. **A third review (2026-10-29) added a real constraint that
-  changes the design, not just the copy**: the wizard can't just warn that unindexed
-  species get hidden and call it done — it needs to treat a missing characteristic value as
-  a distinct `unknown` state, not the same as a documented `absent` (a plant with no
-  recorded flower color is not the same as a plant documented as not flowering), and name
-  search must still cover the full 35,326-species catalog even when characteristic search
-  can only cover the 5.8% — so a dangerous species with no structured traits never becomes
-  invisible just because it can't be found by trait.
+- **Identification wizard** ✅ **done 2026-11-01** — see its own write-up right after the
+  lookalike-comparison one above.
 - **Visual, filterable plant browser** — browse by trait instead of typing a search term.
   Same situation: the data exists, the browse-by-feature UI doesn't. Same `unknown`-vs-
   `absent` requirement applies, and any coverage count shown next to a filter has to be a
@@ -703,6 +695,60 @@ the join has to work symmetrically, not just one direction), the live dev app re
 stayed running through every change, schema and seed data applied to the master db, the
 live running app's db, and the bundled resource, same three-step process as every prior
 phase.
+
+### v2's second real deliverable: the identification wizard ✅ done 2026-11-01
+
+The actual reason v2 exists — the original outside review's own question was "what if I
+don't know the name, how do I find it?" Phase 1.5 shipped the underlying data
+(characteristic rows for 2,058 of 35,326 species) but nobody had built the step-by-step
+UI. This does.
+
+**Real step selection, grounded in the actual data, not assumed**: checked real
+per-characteristic coverage and value distributions before picking anything. Most
+characteristic *names* in the table are yes/no agricultural-use flags (Christmas Tree
+Product, Propagated by Bulb) — useless for visual identification. Five real fields had both
+strong coverage (1,950-2,060 of the 2,058 species with any data) and a small, clean set of
+real values: Flower Color (8 values), Foliage Color (6), growth form/"Shape and
+Orientation" (11), Bloom Period (12), Fruit/Seed Color (9) — these became the wizard's
+fixed step sequence.
+
+**The one rule the schema has to get right, per the design requirement already logged
+here**: a species with no recorded value for a trait must stay a candidate when that trait
+is selected — missing data is a real `unknown` state, never silently the same as
+"confirmed not this." The real SQL: a species survives a selection if it either has no row
+for that characteristic at all, or has a row whose value matches what was picked. Verified
+directly against the database before trusting it in the app — confirmed a white-flowered
+species is correctly excluded after selecting "Flower Color: Yellow," and confirmed a
+species with zero flower-color data is correctly kept as a candidate, not silently dropped.
+
+**Real bug found and fixed along the way, not introduced by the wizard but surfaced by
+it**: building the wizard's "how many of your answers does this species actually confirm"
+counter turned up a live, pre-existing data bug — one species (tall fescue, SCAR7) had
+every one of its ~80 real USDA traits duplicated 25 times over (2,001 rows for one
+species), left behind by Phase 1.5's own ingest. Checked the real scope before fixing
+anything: 200,872 total characteristic rows, only 163,697 actually distinct — **37,175
+duplicate rows (18.5%) were already live**, meaning any species detail page showing
+duplicated species had been quietly repeating facts in its Characteristics section this
+whole time, not just a wizard-building artifact. Fixed at the source
+(`data/dedupe_characteristics.py`, keeps one row per real distinct
+(species, name, value) triple) rather than just working around it in the wizard query —
+though the wizard's own "confirmed" count was also hardened to `COUNT(DISTINCT
+characteristic name)` regardless, so it can't be thrown off by future data issues either.
+
+**Real UI**: a "🌿 Don't know the name? Identify by what it looks like" entry point next
+to the search box. Each step shows real, live option counts (queried against whatever
+candidates survived prior answers, never a static list) plus an explicit "I don't know /
+skip this" choice and a "see candidates so far" escape hatch at any point. Results are
+sorted by how many of the user's answers a species actually has confirmed data for — but a
+species with zero confirmed matches is never excluded, and the UI says plainly that "0
+confirmed" means unindexed, not ruled out.
+
+Verified for real: `cargo check` and `npm run build` both clean, the real database
+deduplication confirmed (200,872 → 163,697 rows, exact match between the master db and the
+live app's own copy), the filter logic spot-checked directly (mismatch excluded, unknown
+kept, confirmed-count correctly bounded at or below the number of real selections made —
+not the inflated 25-per-row figure the duplicate data was producing before the fix), the
+live dev app rebuilt and stayed healthy through every change.
 
 ## Phase 2 — Local AI search integration
 

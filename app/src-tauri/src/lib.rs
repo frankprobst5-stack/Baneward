@@ -60,6 +60,9 @@ pub fn run() {
             commands::add_differentiator,
             commands::verify_differentiator,
             commands::delete_differentiator,
+            commands::wizard_steps,
+            commands::wizard_options,
+            commands::wizard_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
