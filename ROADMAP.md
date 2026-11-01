@@ -32,7 +32,13 @@ a local Ollama model turns a free-text description into the same trait filters t
 and browse views already use, with every suggestion checked against real live data before
 being used and never auto-applied — a real test run caught the model both inventing an
 impossible value and inferring unstated facts, confirming why nothing it suggests is
-treated as final. See below for detail.
+treated as final. **Phase 3 — tying into Citadel is mostly done**: a real tile now lives on
+the user's own actual running Citadel cockpit, verified live and screenshotted, not just
+added to a mockup — with one honest gap flagged rather than glossed over: full cold/warm
+desktop-launch behavior couldn't be confirmed from this remote session (the already-shipped
+WayStation reference app hit the identical environment limitation when tested the same
+way), so that final click-through check is a real next step on Frank's own physical
+desktop. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -884,22 +890,53 @@ the design. New entry point: "🤖 Describe what you saw (local AI)," clearly la
 local, not a cloud service, with the scope and limits stated plainly in the UI itself, not
 just in this document.
 
-## Phase 3 — Tie into Citadel
+## Phase 3 — Tie into Citadel ✅ mostly done 2026-11-01, one real gap flagged honestly below
 
-Wire a launch point into Citadel's cockpit via `baneward://` (already registered in Phase
-1, mirroring `waystation://`) — not started, the actual handshake with Citadel's cockpit is
-the remaining work.
+**Real correction to the 2026-10-29 design note below it**: that note assumed a Citadel
+deep link might carry a real payload (a search query) and designed a buffering/
+acknowledgment queue around that. Checked the actual, real, already-deployed Citadel
+cockpit source (`~/citadel/appdata/cockpit/index.html`, the user's own live home server,
+not a mockup) before building anything — the real pattern every existing ecosystem tile
+uses, including WayStation's own shipped `waystation://open`, is a bare `action://open`
+with **no payload at all**. `handleModuleClick` just does `window.location.href = action`
+and lets the OS hand off to the registered app. The speculative buffering/idempotent-
+delivery design was solving a problem that doesn't exist in the real integration pattern —
+not built, because building it would have been real complexity for a payload Citadel never
+actually sends. If a future Citadel version adds deep search links, this is the first
+place to revisit.
 
-**Design note added 2026-10-29, not yet built or tested**: a deep link can arrive before
-the React frontend finishes mounting, especially on a cold launch — a real class of race
-condition in Tauri v2, not unique to this scheme. Plan is a small Rust-side queue: buffer
-the incoming URI, hold it until the frontend emits its own `frontend-ready` signal, then
-deliver it and wait for an explicit acknowledgment before clearing the queue. Two real
-requirements once this gets built: delivery has to be idempotent (receiving the same URI
-twice must not open duplicate views or re-run the same search), and cold launch (app not
-running yet) and warm launch (already-running instance gets a second URI, same as
-`tauri-plugin-single-instance` already handles for a second app launch) are genuinely
-different cases that both need a real test, not just the cold-start path.
+**Real work done, on the user's actual live Citadel cockpit, not a copy**: added
+Baneward's own tile to `coreModules` (`action: "baneward://open"`, real description,
+placed next to the Garden Planner tile) and its own entry to the health strip, marked
+`unmonitored: true` with the same honest reasoning WayStation's own entry already used — a
+static cockpit page genuinely cannot observe whether a native desktop app is running, so
+it shows "UNKNOWN," never a fabricated status. Also generalized `handleModuleClick`'s
+URI-scheme check from a literal `'waystation://'` string match to any non-`http` custom
+scheme, so Baneward's tile (and any future ecosystem app's) works without needing this
+function edited again. Verified live and screenshotted against the real running cockpit at
+`localhost:8085` (an actual nginx container serving this exact file) — the tile renders
+correctly, matching every other card's layout, with the real "UNKNOWN" health badge.
+
+**Real limitation found and reported honestly, not glossed over**: tried to verify the
+actual cold-launch and warm-launch (already-running, second `baneward://open` click)
+behavior end-to-end via `xdg-open baneward://open` at the OS level. Both attempts left the
+process stuck in GTK/WebKit startup (disk-sleep state, ~50MB RSS, never completing). Before
+concluding this was a real Baneward bug, tested whether the same thing happens to
+WayStation — the already-shipped, working reference implementation using the identical
+`tauri-plugin-single-instance` + `tauri-plugin-deep-link` pattern — by launching a fresh
+disposable WayStation instance the same way. **It showed the identical stuck-in-startup
+behavior.** That's real, direct evidence this is a shared environment limitation of this
+specific remote/sandboxed dev session (most likely an incomplete display/compositor stack
+for WebKitGTK), not a defect introduced by Baneward's own Phase 3 work — but it also means
+the actual cold/warm-launch and single-instance-focus behavior genuinely was **not**
+confirmed end-to-end in this session, and shouldn't be claimed as verified. What *was*
+confirmed directly: the OS-level scheme registration itself is real and correct
+(`xdg-mime query default x-scheme-handler/baneward` resolves to the real
+`baneward-handler.desktop` file), and the Rust side needs no new code at all beyond what
+Phase 1 already built, since there's no payload to parse — matching WayStation's own
+equally minimal, already-working implementation exactly. **Real next step**: have Frank
+click the real tile on his own physical desktop once, both cold and warm, to close out
+this one remaining honest gap.
 
 ## Keeping this current
 
