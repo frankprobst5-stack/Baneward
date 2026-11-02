@@ -1050,15 +1050,26 @@ loose list that only lives in chat.
     numeric code with no inline lookup table in the service metadata — a 2-species spot
     check found code `5` on a confirmed-native species and `3` on a confirmed-introduced one
     (Abies alba), a real, consistent signal but not yet verified against enough species to
-    trust as a rule; an unfiltered whole-table count query (`where=1=1`) hung rather than
-    returning, confirming (not just assuming) that ingest has to go per-species the same
-    resumable/cached/batched way `PlantCharacteristics` did, not one bulk table pull; and the
-    public site's own "Download Distribution Data" button hits a second, not-yet-reverse-
-    engineered POST endpoint on the same `plantsservices.sc.egov.usda.gov` API Baneward
-    already trusts, worth checking as a possibly simpler path before committing to the
-    ArcGIS query shape. A real scaling estimate (how long 35,326 per-species queries would
-    take, how big the resulting table would be) hasn't been measured yet — the next real
-    step before building this, the same bounded-prototype-first discipline as every other
+    trust as a rule; and **bulk pagination doesn't actually work despite being advertised** —
+    real, tested, not assumed: the service's own metadata claims `supportsPagination: true`
+    with `maxRecordCount: 2000`, and an unfiltered `returnCountOnly=true` query eventually
+    confirmed a real total of **3,723,947 county-occurrence rows** in the table — but every
+    actual attempt to page through real rows (`resultRecordCount`/`resultOffset`, with or
+    without `orderByFields`) came back `400 Failed to execute query`, tested several ways
+    before concluding this, not given up on after one try. The one query shape that reliably
+    works is exactly the one already proven per-species (`where=plant_master_id=<id>`,
+    confirmed above) — so ingest has to go per-species the same resumable/cached/batched way
+    `PlantCharacteristics` did, not a bulk table pull, and that's now a tested conclusion,
+    not a cautious default. The public site's own "Download Distribution Data" button hits a
+    second, not-yet-reverse-engineered POST endpoint on the same `plantsservices.sc.egov.
+    usda.gov` API Baneward already trusts, worth a quick look since it might sidestep the
+    broken-pagination problem entirely, but not required — the per-species path already
+    works. A real scaling estimate (how long 35,326 per-species queries would actually take
+    at a respectful rate, how big the resulting table would be — the full service's own
+    3.7M-row total suggests Baneward's own 35,326-species subset could land anywhere from
+    hundreds of thousands to a couple million rows, a real spread, not a single guessed
+    number) hasn't been measured yet — the next real step before building this, the same
+    bounded-prototype-first discipline as every other
     source in this document, not a reason to doubt the source itself.
 - Browse the full catalog alphabetically, not just via search-by-name or trait filters —
   real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
