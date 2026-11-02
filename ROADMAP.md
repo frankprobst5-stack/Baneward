@@ -41,11 +41,12 @@ confirmed.** A real next milestone is already logged, not started, revised again
 own real prioritization: **v3 — Content Depth & Field Reach** — a plant-part/preparation
 chart, a pasture/property survey for livestock-harmful plants, a patch map with a harvest
 calendar, and medicinal cautions kept visibly separate from the traditional-use claims pile
-— plus a real backlog of ten more items (photo-vs-reference comparison, household roles,
-a verification-progress page, a lookalike quiz, state noxious-weed flags, a Garden Planner
-link, high-contrast mode, bookmarks, cross-household claim sharing, alphabetical browse,
-and an experimental photo-based AI identification feature explicitly gated on a real
-accuracy test holding up first). See below for detail.
+— plus a real backlog of twelve more items (photo-vs-reference comparison, household
+roles, a verification-progress page, a lookalike quiz, state noxious-weed flags, a Garden
+Planner link, high-contrast mode, bookmarks, a Citadel-tied regional range map (species→map
+and map→species, using Citadel's own real offline MapLibre/PMTiles stack), cross-household
+claim sharing, alphabetical browse, and an experimental photo-based AI identification
+feature explicitly gated on a real accuracy test holding up first). See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -1015,6 +1016,34 @@ loose list that only lives in chat.
   (the same file Phase 3 just added Baneward's own tile next to).
 - A high-contrast mode readable in direct sunlight — real, standalone, no data dependency.
 - Bookmarks for frequently-checked species — real, small, standalone.
+- **Regional range map, both directions: species→map and map→species.** Frank's own idea
+  (2026-11-02): show where a species actually lives on a map, and separately, click a
+  region and get back everything that lives there. Checked the real tech behind it before
+  logging it: Citadel's own cockpit already renders a genuine offline map — `map.html`
+  loads vendored **MapLibre GL JS** reading locally-hosted **PMTiles** vector tiles
+  (`comms_base.pmtiles`/`tactical_terrain.pmtiles`) served from the cockpit's own nginx,
+  no internet tile fetch at all — not a classic "MapServer" install, but the same real
+  offline-map idea, already proven and already running. Two real, honest constraints this
+  surfaced:
+  - **Why this would be Citadel-only, by real architecture, not a policy choice**: the
+    vendored MapLibre bundle and the basemap `.pmtiles` files live inside Citadel's own
+    nginx container, not inside Baneward. A standalone Baneward install would either need
+    to vendor its own copy of both (real added weight, the same kind of size tradeoff
+    already logged against bundling all 18,121 USDA images) or just not offer the map view
+    when running standalone — falling back to the coarse region text already on a
+    species' detail page. Exactly the split Frank's own framing anticipated.
+  - **Real data gap, checked directly, not assumed**: `species.native_status` already
+    holds real per-region native/introduced codes from USDA PLANTS (e.g. `L48 N, AK N, CAN
+    N` — lower 48 as one region, not state-by-state), ingested back in Phase 0 and
+    currently unused for anything visual. That's a real, zero-new-sourcing starting point
+    for shading a US map by native range — but at that resolution, clicking anywhere in
+    the "L48" shading would return most of the lower-48 species list, not a genuinely
+    useful area query. A real state-level or county-level distribution dataset (USDA
+    PLANTS' own "Distribution" data, separate from what's ingested today, or BONAP for
+    county-level) would need the same license/bulk-access verification every other source
+    here has gotten, not yet checked. Worth doing the coarse version first as a real,
+    cheap v1 (it's already-owned data) and treating state/county precision as a distinct,
+    unverified follow-on, not one combined estimate.
 - Browse the full catalog alphabetically, not just via search-by-name or trait filters —
   real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
   result-row rendering already built for search/wizard/browse results, no new schema, no
