@@ -37,11 +37,15 @@ user's own actual running Citadel cockpit, verified live and screenshotted, not 
 to a mockup — and Frank himself confirmed the real click-through loads fine on his own
 physical desktop, closing the one honest gap this remote session couldn't verify itself.
 **Every phase of Baneward's own roadmap, Phase 0 through Phase 3, is now shipped and
-confirmed.** A real next milestone is already logged, not started: **v3 — Content Depth &
-Field Reach** — more curated dangerous-lookalike pairs, an actual human verification pass
-on the 51,580 mostly-unverified claims, a lightweight field/mobile companion (the gap
-Muster already closed for WayStation), and regional prioritization of the 35,326-species
-catalog. See below for detail.
+confirmed.** A real next milestone is already logged, not started, revised against Frank's
+own real prioritization: **v3 — Content Depth & Field Reach** — a plant-part/preparation
+chart, a pasture/property survey for livestock-harmful plants, a patch map with a harvest
+calendar, and medicinal cautions kept visibly separate from the traditional-use claims pile
+— plus a real backlog of ten more items (photo-vs-reference comparison, household roles,
+a verification-progress page, a lookalike quiz, state noxious-weed flags, a Garden Planner
+link, high-contrast mode, bookmarks, cross-household claim sharing, alphabetical browse,
+and an experimental photo-based AI identification feature explicitly gated on a real
+accuracy test holding up first). See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -946,48 +950,90 @@ now shipped and confirmed, Phase 0 through Phase 3.
 
 ## v3 — Content Depth & Field Reach (planned, not started)
 
-Asked for an honest assessment once every build phase was done, not just "what's next."
-The real answer: the *skeleton* is complete and well-engineered, but the safety-critical
-*content* is still thin, and the platform itself has a real gap for the actual use case.
-Committed here the same way v2 was — real scope, not a loose list that only lives in chat.
+First drafted 2026-11-01 from an honest self-assessment once every build phase shipped —
+revised 2026-11-02 against Frank's own real prioritization, which supersedes mine. The
+real diagnosis underneath both versions is the same: the *skeleton* is complete and
+well-engineered, but the safety-critical *content* is still thin, and the platform has a
+real gap for the actual use case. Committed here the same way v2 was — real scope, not a
+loose list that only lives in chat.
 
-- **More curated dangerous-lookalike pairs.** The registry has exactly one entry
-  (hemlock/wild carrot) — the single highest-safety-value feature in the app, with the
-  thinnest real content. Real candidates, checked to actually exist in the database before
-  writing them down here (not assumed): water hemlock (*Cicuta maculata*, *C. douglasii*,
-  *C. bulbifera*, *C. virosa*) vs. hemlock waterparsnip (*Sium suave*) — both real
-  Apiaceae, both already found together in a hemlock search during this session's own live
-  testing; giant hogweed (*Heracleum mantegazzianum*) vs. common cowparsnip (*Heracleum
-  maximum*) — same genus, one causes severe photodermatitis; death camas (12 real
-  *Zigadenus* species in the database, from desert to meadow to mountain) vs. wild onion
-  (*Allium* species, real and numerous); eastern poison ivy (*Toxicodendron radicans*) vs.
-  Virginia creeper (*Parthenocissus quinquefolia*) — a real, commonly-confused leaf pattern.
-  Each pair needs the same real sourcing discipline the first one got — two independent
-  authoritative references checked directly, not generated from memory — before any
-  differentiator gets marked verified.
-- **A real verification pass on the claims that already exist.** 51,580 claims sound like
-  real coverage, but they're almost entirely from one source (Dr. Duke) and essentially
-  none have been through actual human review — the verification mechanism works, but has
-  barely been used. Start with the `poisonous` category specifically, the highest real
-  safety value, and establish a real criterion for what "verified" means here (checking a
-  claim against a second independent authoritative source, the same bar the lookalike pair
-  was held to) rather than leaving the unverified-by-default system unverified forever by
-  default.
-- **A lightweight field/mobile companion.** This is a desktop app, and foraging happens
-  outdoors — nobody carries a laptop into the woods. Muster exists specifically to close
-  this exact gap for WayStation (a phone/PWA companion, zero install, pulling live from the
-  main install); Baneward has no equivalent yet. Real design question, not yet answered:
-  what syncs back to the main install, and how — this needs its own real investigation into
-  how Muster/WayStation actually solved the same problem, not an assumed answer.
-- **Regional prioritization.** The catalog is all 35,326 US species, treated as equally
-  relevant regardless of where the user actually is — out of step with this ecosystem's own
-  established pattern (`garden.html`'s real Howardwick, TX/Donley County specificity). USDA
-  PLANTS' own real distribution/native-status data was already ingested in Phase 0 — a real,
-  concrete next step is surfacing "what's actually near you" ahead of the full national
-  catalog, not a new data source, just a real use of data already sitting in the database.
+**The four strongest, Frank's own ranking:**
 
-No start date yet — logged here so these don't quietly disappear, the same reason v2 got
-written down before it was built.
+- **Plant-part and preparation chart.** A grid showing which part of a plant is edible,
+  poisonous, or edible only after processing — pokeweed, acorns, and elderberry each
+  depend on the part, the growth stage, or the prep. Possibly the biggest real safety gap
+  left after the poison data itself. Real, honest scoping: the *display* mechanism is
+  mostly reuse — `claims.plant_part` already exists and is already populated — but the
+  actual part-by-part *safety data* (e.g. "raw poisonous, cooked edible," not just "this
+  part was used traditionally") mostly doesn't exist yet in a structured form. Dr. Duke's
+  claims record traditional uses by plant part, not a clean edible/poisonous/
+  edible-after-processing state machine — real content work, same sourcing discipline as
+  the lookalike pairs, not just a UI pass.
+- **Pasture or property survey.** Walk a pasture or lot, log each plant found, get back a
+  list of anything harmful to livestock. Builds on field notes (real, already shipped) plus
+  a real new field this doesn't have yet: claims currently have no "who it affects"
+  dimension (human/livestock/pet/general) — `category='poisonous'` today doesn't
+  distinguish "toxic to goats" from "toxic to people." A real, honest schema gap to design
+  around, not just a query away. Fits the ecosystem's own ranch-country context.
+- **Your own patch map and harvest calendar.** Optional GPS on field notes, plus a
+  reminder when a logged patch comes back into season. Real schema need: `field_notes` has
+  no location columns yet (nullable lat/lng, kept genuinely optional). The "comes into
+  season" part can reuse real, already-ingested data — Bloom Period and Fruit/Seed Period
+  Begin/End are real USDA characteristics already in the database for the ~5.8% of species
+  that have them — but "reminder" in a desktop app with no push notifications realistically
+  means "flagged when you open the app near the season," not a true background alert;
+  worth deciding explicitly, not assuming. "Locations stay private" is already true by
+  construction — nothing in this app syncs anywhere today.
+- **Medicinal cautions.** Sourced warnings about pregnancy, drug interactions, and
+  dangerous doses, kept as their own category so they can't get buried among ~200
+  traditional-use claims for one species (castor bean's own real count). Real open design
+  question: a new `claims.category` value (e.g. `caution`), or a fully separate small
+  table the way `lookalike_pairs` got its own table instead of overloading `claims` —
+  worth deciding deliberately, given the same real reasoning that split lookalikes out in
+  the first place (a thing that must never get quietly buried needs its own real
+  visibility, not just a tag on a pile).
+
+**The rest of the backlog, not yet prioritized, logged so none of it quietly disappears:**
+
+- Side-by-side comparison of a user's own photo against a candidate species' reference
+  photos and its known lookalikes — a real, natural extension of both "Your Photos" and
+  the lookalike-comparison view, once there's more than one lookalike pair to compare
+  against.
+- Household roles — only specific people can verify a claim, anyone can add one. Real,
+  honest gap this would close: there is no user-account system at all today;
+  `added_by`/`verified_by` are free-text strings, not real identities — this is a bigger
+  addition than it sounds, not a small toggle.
+- A progress page showing how many claims are verified — makes the real, currently-mostly-
+  invisible review backlog (51,580 claims, nearly none reviewed) visible instead of buried.
+- A lookalike quiz — real, but wants more than one lookalike pair to be worth building;
+  depends on the lookalike-curation item above actually happening first.
+- A noxious-weed flag sourced from real state weed lists — a new external data source,
+  needs the same real license/access verification discipline as every other source in this
+  document before anything gets ingested, not yet checked.
+- A Garden Planner link: identify weeds in the user's own raised beds, and flag plants
+  toxic to chickens near the coop. A real, concrete tie to Citadel's own `garden.html`
+  (the same file Phase 3 just added Baneward's own tile next to).
+- A high-contrast mode readable in direct sunlight — real, standalone, no data dependency.
+- Bookmarks for frequently-checked species — real, small, standalone.
+- Browse the full catalog alphabetically, not just via search-by-name or trait filters —
+  real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
+  result-row rendering already built for search/wizard/browse results, no new schema, no
+  new backend concept. The cheapest real item in this whole list.
+- Sharing verified claims between trusted households — imports arrive unverified until a
+  human reviews them, the exact same unverified-by-default discipline this whole project
+  already runs on, just applied across installs instead of within one. Real overlap with
+  the "how does anything sync between installs" question already open from the
+  field/mobile-companion idea — worth answering once, not twice.
+- Photo-based identification suggestions from a local AI model — the experimental, most
+  real-risk item here, and Frank's own stated condition is the right one: build it only if
+  a real accuracy test holds up first, same evidentiary bar the text-based AI search was
+  held to before it shipped (that one got built after live tests against real data showed
+  it working, with real failure modes caught and designed around — this one needs the
+  equivalent real test before any commitment to build it, not an assumption that a vision
+  model will behave as well as the text one did).
+
+No start date yet on any of this — logged here so none of it quietly disappears, the same
+reason v2 got written down before it was built.
 
 ## Keeping this current
 

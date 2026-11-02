@@ -81,9 +81,10 @@ local Ollama model turns it into the same trait filters you could set manually, 
 and editable before anything is searched, never a final answer by itself. **A real launch
 tile now lives on Citadel's own cockpit**, and launching from it is confirmed working on a
 real desktop. **Every phase is now shipped.** A real next milestone, v3 — Content Depth &
-Field Reach, is logged and not yet started: more curated lookalike pairs, real claim
-verification, a mobile/field companion, and regional prioritization. See
-[ROADMAP.md](ROADMAP.md) for the real detail.
+Field Reach, is logged and not yet started: a plant-part/preparation safety chart, a
+pasture/property survey for livestock-harmful plants, a patch map with a harvest calendar,
+and medicinal cautions kept visibly separate from the general claims pile — plus a longer
+backlog of real, ranked ideas. See [ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash
 cd app
