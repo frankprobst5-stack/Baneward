@@ -1032,18 +1032,34 @@ loose list that only lives in chat.
     already logged against bundling all 18,121 USDA images) or just not offer the map view
     when running standalone — falling back to the coarse region text already on a
     species' detail page. Exactly the split Frank's own framing anticipated.
-  - **Real data gap, checked directly, not assumed**: `species.native_status` already
-    holds real per-region native/introduced codes from USDA PLANTS (e.g. `L48 N, AK N, CAN
-    N` — lower 48 as one region, not state-by-state), ingested back in Phase 0 and
-    currently unused for anything visual. That's a real, zero-new-sourcing starting point
-    for shading a US map by native range — but at that resolution, clicking anywhere in
-    the "L48" shading would return most of the lower-48 species list, not a genuinely
-    useful area query. A real state-level or county-level distribution dataset (USDA
-    PLANTS' own "Distribution" data, separate from what's ingested today, or BONAP for
-    county-level) would need the same license/bulk-access verification every other source
-    here has gotten, not yet checked. Worth doing the coarse version first as a real,
-    cheap v1 (it's already-owned data) and treating state/county precision as a distinct,
-    unverified follow-on, not one combined estimate.
+  - **Real data gap, checked directly, not assumed. Update 2026-11-02: the fine-grained
+    source exists and was found and tested live, not just theorized.** `species.native_status`
+    (ingested in Phase 0) only holds coarse per-region codes (`L48 N, AK N, CAN N` — lower
+    48 as one region). But a real, genuinely county-level USDA distribution service was
+    found by watching the actual network traffic on a live plant-profile page (same
+    technique that found `PlantCharacteristics` in Phase 1.5): the official NRCS ArcGIS
+    REST service at `apps.geo.fpac.usda.gov/nrcs-geodata/rest/services/land_use_land_cover/
+    plants/MapServer`. Its own service description states plainly it's "intended for public
+    use," no key or auth required, confirmed by direct query. Verified end-to-end against a
+    real test species (Texas ragwort, SEAM2, `plant_master_id` 39633 — the same `Id` field
+    already sitting unused in every cached Phase 0 `PlantProfile` response): Layer 4
+    ("States and Provinces") returned its 4 real native states (Arkansas, Louisiana,
+    Missouri, Texas); Layer 6 ("Counties") returned real **69 individual Texas/Louisiana
+    counties** (Denton, Bexar, Cameron, etc.) — genuinely finer than state-level, not just
+    matching it. Real open items, not yet resolved: `plant_nativity_id` comes back as a bare
+    numeric code with no inline lookup table in the service metadata — a 2-species spot
+    check found code `5` on a confirmed-native species and `3` on a confirmed-introduced one
+    (Abies alba), a real, consistent signal but not yet verified against enough species to
+    trust as a rule; an unfiltered whole-table count query (`where=1=1`) hung rather than
+    returning, confirming (not just assuming) that ingest has to go per-species the same
+    resumable/cached/batched way `PlantCharacteristics` did, not one bulk table pull; and the
+    public site's own "Download Distribution Data" button hits a second, not-yet-reverse-
+    engineered POST endpoint on the same `plantsservices.sc.egov.usda.gov` API Baneward
+    already trusts, worth checking as a possibly simpler path before committing to the
+    ArcGIS query shape. A real scaling estimate (how long 35,326 per-species queries would
+    take, how big the resulting table would be) hasn't been measured yet — the next real
+    step before building this, the same bounded-prototype-first discipline as every other
+    source in this document, not a reason to doubt the source itself.
 - Browse the full catalog alphabetically, not just via search-by-name or trait filters —
   real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
   result-row rendering already built for search/wizard/browse results, no new schema, no
