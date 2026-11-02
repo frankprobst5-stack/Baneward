@@ -37,7 +37,11 @@ user's own actual running Citadel cockpit, verified live and screenshotted, not 
 to a mockup — and Frank himself confirmed the real click-through loads fine on his own
 physical desktop, closing the one honest gap this remote session couldn't verify itself.
 **Every phase of Baneward's own roadmap, Phase 0 through Phase 3, is now shipped and
-confirmed.** See below for detail.
+confirmed.** A real next milestone is already logged, not started: **v3 — Content Depth &
+Field Reach** — more curated dangerous-lookalike pairs, an actual human verification pass
+on the 51,580 mostly-unverified claims, a lightweight field/mobile companion (the gap
+Muster already closed for WayStation), and regional prioritization of the 35,326-species
+catalog. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -939,6 +943,51 @@ equally minimal, already-working implementation exactly.
 own actual physical desktop and confirmed it loads fine — the one thing this remote
 session genuinely couldn't verify itself. That's every phase on Baneward's own roadmap
 now shipped and confirmed, Phase 0 through Phase 3.
+
+## v3 — Content Depth & Field Reach (planned, not started)
+
+Asked for an honest assessment once every build phase was done, not just "what's next."
+The real answer: the *skeleton* is complete and well-engineered, but the safety-critical
+*content* is still thin, and the platform itself has a real gap for the actual use case.
+Committed here the same way v2 was — real scope, not a loose list that only lives in chat.
+
+- **More curated dangerous-lookalike pairs.** The registry has exactly one entry
+  (hemlock/wild carrot) — the single highest-safety-value feature in the app, with the
+  thinnest real content. Real candidates, checked to actually exist in the database before
+  writing them down here (not assumed): water hemlock (*Cicuta maculata*, *C. douglasii*,
+  *C. bulbifera*, *C. virosa*) vs. hemlock waterparsnip (*Sium suave*) — both real
+  Apiaceae, both already found together in a hemlock search during this session's own live
+  testing; giant hogweed (*Heracleum mantegazzianum*) vs. common cowparsnip (*Heracleum
+  maximum*) — same genus, one causes severe photodermatitis; death camas (12 real
+  *Zigadenus* species in the database, from desert to meadow to mountain) vs. wild onion
+  (*Allium* species, real and numerous); eastern poison ivy (*Toxicodendron radicans*) vs.
+  Virginia creeper (*Parthenocissus quinquefolia*) — a real, commonly-confused leaf pattern.
+  Each pair needs the same real sourcing discipline the first one got — two independent
+  authoritative references checked directly, not generated from memory — before any
+  differentiator gets marked verified.
+- **A real verification pass on the claims that already exist.** 51,580 claims sound like
+  real coverage, but they're almost entirely from one source (Dr. Duke) and essentially
+  none have been through actual human review — the verification mechanism works, but has
+  barely been used. Start with the `poisonous` category specifically, the highest real
+  safety value, and establish a real criterion for what "verified" means here (checking a
+  claim against a second independent authoritative source, the same bar the lookalike pair
+  was held to) rather than leaving the unverified-by-default system unverified forever by
+  default.
+- **A lightweight field/mobile companion.** This is a desktop app, and foraging happens
+  outdoors — nobody carries a laptop into the woods. Muster exists specifically to close
+  this exact gap for WayStation (a phone/PWA companion, zero install, pulling live from the
+  main install); Baneward has no equivalent yet. Real design question, not yet answered:
+  what syncs back to the main install, and how — this needs its own real investigation into
+  how Muster/WayStation actually solved the same problem, not an assumed answer.
+- **Regional prioritization.** The catalog is all 35,326 US species, treated as equally
+  relevant regardless of where the user actually is — out of step with this ecosystem's own
+  established pattern (`garden.html`'s real Howardwick, TX/Donley County specificity). USDA
+  PLANTS' own real distribution/native-status data was already ingested in Phase 0 — a real,
+  concrete next step is surfacing "what's actually near you" ahead of the full national
+  catalog, not a new data source, just a real use of data already sitting in the database.
+
+No start date yet — logged here so these don't quietly disappear, the same reason v2 got
+written down before it was built.
 
 ## Keeping this current
 

@@ -80,8 +80,10 @@ complete**, and so is local AI search — describe what you saw in plain languag
 local Ollama model turns it into the same trait filters you could set manually, reviewed
 and editable before anything is searched, never a final answer by itself. **A real launch
 tile now lives on Citadel's own cockpit**, and launching from it is confirmed working on a
-real desktop. **Every phase is now shipped.** See [ROADMAP.md](ROADMAP.md) for the real
-detail.
+real desktop. **Every phase is now shipped.** A real next milestone, v3 — Content Depth &
+Field Reach, is logged and not yet started: more curated lookalike pairs, real claim
+verification, a mobile/field companion, and regional prioritization. See
+[ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash
 cd app
