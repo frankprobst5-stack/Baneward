@@ -1068,9 +1068,60 @@ loose list that only lives in chat.
     at a respectful rate, how big the resulting table would be — the full service's own
     3.7M-row total suggests Baneward's own 35,326-species subset could land anywhere from
     hundreds of thousands to a couple million rows, a real spread, not a single guessed
-    number) hasn't been measured yet — the next real step before building this, the same
-    bounded-prototype-first discipline as every other
-    source in this document, not a reason to doubt the source itself.
+    number) hadn't been measured yet — the next real step before building this, the same
+    bounded-prototype-first discipline as every other source in this document, not a
+    reason to doubt the source itself.
+
+  **Real 150-species prototype run, 2026-11-02, same day — `data/prototype_distribution.py`.**
+  A deliberately-chosen batch (poison hemlock, wild carrot, all 4 water hemlocks, both
+  poison ivies, both poison oaks, cattail, milkweed, purple coneflower, nettle, pokeweed,
+  giant hogweed, cowparsnip — 17 species this project already cares about) plus 133 random
+  species for honest averages, fetched against both the state and county layers, written to
+  a separate prototype database (`data/distribution_prototype.db`, not the live app's).
+
+  **Real throughput, fast**: 150 species × 2 layer queries = 300 real HTTP calls in 38
+  seconds at a conservative 5 workers (this NRCS service had never been load-tested by this
+  project before, so starting cautious was deliberate) — zero hard errors. Extrapolated
+  from that measured rate (not promised): **~2.5 hours for all 35,326 species** at the same
+  concurrency. Real, honest caveat carried over from Phase 1.10/1.11's own lesson: a 38-
+  second burst doesn't prove a multi-hour sustained rate holds — iNaturalist's and GBIF's
+  own APIs both looked fine at first and throttled later. A real full run needs the same
+  retry/backoff headroom already standard in this project, not a bare assumption this
+  government service will behave differently.
+
+  **Real bug found in the source service's own data, not this project's code** — caught by
+  checking actual output before trusting it, same discipline as the Phase 1.5 tall-fescue
+  duplication bug: county-level rows have real duplicates baked into the USDA service
+  itself. Measured directly: **28.8% of raw county rows are exact duplicates** (same county
+  name returned more than once for the same species — one sampled species had "Lincoln"
+  County returned 4 times). State-level rows are completely clean (0% duplication). A real
+  future ingest has to `GROUP BY`/dedupe county rows at insert time, the same fix pattern
+  already proven in `dedupe_characteristics.py` — this isn't a reason to distrust the
+  source, just a real, now-known fact about it.
+
+  **Real coverage, lower than hoped but honest**: 27.3% of the 150 species had zero state
+  rows and 34.0% had zero county rows — some species in this catalog simply have no
+  occurrence record in this particular service (plausible for rare, obscure, or non-
+  mainland taxa), matching the service's own documentation that coverage isn't universal.
+  Of species that do have data, real volume is substantial and skewed: average **120.9**
+  distinct counties per species after deduplication, but a wide real spread — some species
+  occur in barely a handful of counties, cattail (`TYLA`) alone showed 1,135 distinct real
+  counties.
+
+  **Real nativity-code crosswalk, now resolved with real confidence** (the 2-species spot
+  check from the first pass is superseded by this): cross-checked all 26,913 real rows
+  against each species' already-known L48 `native_status`. Code `5` = **native**, confirmed
+  on 22,882 real rows (99.99% agreement). Codes `3` and `7` both read as **introduced**
+  (2,676 and 1,233 real rows, both >99.5% agreement) — genuinely two different codes for
+  what looks like the same status from this angle, a real open question (possibly
+  "introduced" vs. "introduced and something else," e.g. cultivated/noxious) worth checking
+  before this ships, not assumed to be redundant.
+
+  **Not yet decided**: whether to commit to the real full build (new live schema in
+  `db.rs`, a resumable ingest script against all 35,326 species with real retry/backoff,
+  Rust commands, and the actual map UI tied to Citadel) — this prototype proves the data
+  source and the approach work, it doesn't commit to building the feature. A real decision
+  point, not defaulted into.
 - Browse the full catalog alphabetically, not just via search-by-name or trait filters —
   real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
   result-row rendering already built for search/wizard/browse results, no new schema, no

@@ -19,6 +19,7 @@ data/raw/
 # not something to carry in git history.
 data/cache/
 data/cache_characteristics/
+data/cache_distribution/
 data/ingest_full.log
 
 # The one real exception to `*.db` above: the bundled app resource is a
