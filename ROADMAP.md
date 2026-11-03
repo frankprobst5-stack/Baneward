@@ -950,6 +950,26 @@ own actual physical desktop and confirmed it loads fine — the one thing this r
 session genuinely couldn't verify itself. That's every phase on Baneward's own roadmap
 now shipped and confirmed, Phase 0 through Phase 3.
 
+**Real regression found and fixed, 2026-11-03: the dev-mode-only gap this phase's own
+registration note flagged finally showed up for real.** Frank hit "Could not connect to
+localhost: Connection refused" inside Baneward's own window when clicking the cockpit tile
+— the `baneward://` scheme had only ever been registered against the debug binary (which
+needs the Vite dev server at `localhost:1420` running to load anything), not a real
+packaged release. Building one (`npm run tauri build`) surfaced a second, real, previously-
+untested bug along the way: this phase's own `lib.rs` comment claimed "a packaged .deb/
+AppImage gets its scheme association baked in by Tauri's bundler at package time" — never
+actually verified until now. The first real release build's generated `.desktop` file had
+**no `MimeType=x-scheme-handler/baneward` line at all**. Checked the actual installed
+`tauri-plugin-deep-link` v2.6.3 source (`src/config.rs`) rather than guessing: its real
+`Config` struct requires schemes nested under `desktop: { schemes: [...] }`, not the flat
+`deep-link: { schemes: [...] }` this project's `tauri.conf.json` had — a real config-shape
+bug, not a missing bundler feature. Fixed and rebuilt; the regenerated `.desktop` file
+correctly gained the `MimeType` line. Real bundles produced: `.deb` (69.9MB), `.rpm`
+(69.9MB), `.AppImage` (146.5MB) — none installed yet (needs `sudo`, a real system change
+left for Frank to run himself, not something to do unprompted). WayStation's own
+`tauri.conf.json` has the identical flat shape and almost certainly the same latent bug —
+flagged separately rather than fixed here, out of scope for this repo.
+
 ## v3 — Content Depth & Field Reach (planned, not started)
 
 First drafted 2026-11-01 from an honest self-assessment once every build phase shipped —

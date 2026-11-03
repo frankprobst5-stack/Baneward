@@ -35,7 +35,9 @@
   },
   "plugins": {
     "deep-link": {
-      "schemes": ["baneward"]
+      "desktop": {
+        "schemes": ["baneward"]
+      }
     }
   }
 }
