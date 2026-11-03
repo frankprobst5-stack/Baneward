@@ -41,12 +41,13 @@ confirmed.** A real next milestone is already logged, not started, revised again
 own real prioritization: **v3 — Content Depth & Field Reach** — a plant-part/preparation
 chart, a pasture/property survey for livestock-harmful plants, a patch map with a harvest
 calendar, and medicinal cautions kept visibly separate from the traditional-use claims pile
-— plus a real backlog of twelve more items (photo-vs-reference comparison, household
+— plus a real backlog of eleven more items (photo-vs-reference comparison, household
 roles, a verification-progress page, a lookalike quiz, state noxious-weed flags, a Garden
-Planner link, high-contrast mode, bookmarks, a Citadel-tied regional range map (species→map
-and map→species, using Citadel's own real offline MapLibre/PMTiles stack), cross-household
-claim sharing, alphabetical browse, and an experimental photo-based AI identification
-feature explicitly gated on a real accuracy test holding up first). See below for detail.
+Planner link, high-contrast mode, bookmarks, cross-household claim sharing, alphabetical
+browse, and an experimental photo-based AI identification feature explicitly gated on a
+real accuracy test holding up first). One former backlog item, the Citadel-tied regional
+range map, is no longer backlog — it shipped 2026-11-03, real state/county data both
+directions, verified live on Citadel's own running map. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
 
@@ -1151,12 +1152,32 @@ loose list that only lives in chat.
   genuine race between two processes touching the same file; resolved by letting the merge
   finish and relaunching clean).
 
-  **Not yet done**: the actual Citadel-side map (species→map shading, map→species lookup)
-  — this ships the real data layer and a plain-text "Where it grows" view that works fully
-  standalone, matching the split Frank's own framing anticipated. The interactive MapLibre
-  tie-in is cross-repo work (this project's own `data/baneward.db` feeding Citadel's
-  `map.html`) that hasn't been designed yet, not something to invent silently — a real,
-  separate next step.
+  **Citadel map tie-in designed and shipped, 2026-11-03, same week.** Frank said "lets
+  design the citadel map tie in," then "lets do it." Real architecture, verified before
+  building: Citadel's own `vault-api` (a Flask backend already live in that repo) queries
+  Baneward's live database directly, read-only mount (`BANEWARD_DATA_PATH` in Citadel's
+  `.env`), no export or sync step — always exactly current. Checked Citadel's existing
+  `.pmtiles` basemap first rather than assuming it could shade counties: its own
+  `boundaries` layer has no name field at all, so Citadel gained a real new source, the US
+  Census Bureau's county boundary file (public domain), to make this possible at all.
+
+  **Real, honest join limitation found and designed around**: Baneward's own county rows
+  carry only a bare name ("Denton"), no state — county names repeat across states (many
+  "Washington County"s exist). The reverse lookup always has the real state from the
+  clicked polygon and cross-checks it against that species' own state-level rows rather
+  than trusting the bare name alone — not airtight (a species in two same-named counties in
+  two states it's also native/introduced to both would still be ambiguous), logged
+  honestly, not hidden.
+
+  **New button on this app's own "Where it grows" section**, "🗺 View on Citadel map" —
+  `tauri-plugin-opener` (already a dependency, zero new ones added) opens Citadel's
+  `map.html?species=<symbol>` in the browser, same "fire a plain link, no handshake"
+  pattern Phase 3 already proved right for this ecosystem. Verified live against the real
+  running Citadel stack, both directions: species→map correctly shaded Texas ragwort's real
+  69 counties and zoomed to them; clicking an unrelated county (Coleman, TX) correctly
+  returned all 222 species Baneward has documented there, colored by native/introduced,
+  zero console errors. Full detail in Citadel's own `ROADMAP.md` (Phase 9) — this app only
+  needed the one new button, everything else lives on Citadel's side.
 - Browse the full catalog alphabetically, not just via search-by-name or trait filters —
   real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
   result-row rendering already built for search/wizard/browse results, no new schema, no

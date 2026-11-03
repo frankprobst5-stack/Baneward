@@ -170,6 +170,17 @@ body { margin: 0; }
 
 .distribution-section { margin-bottom: 20px; }
 .distribution-section h3 { margin-bottom: 4px; }
+.map-link {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--blue-bright);
+  font-size: 0.8rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 4px 0;
+}
+.map-link:hover { border-color: var(--border-strong); }
 .dist-chip {
   display: inline-block;
   margin: 2px 4px 2px 0;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 interface SpeciesSummary {
@@ -213,6 +214,19 @@ const EVIDENCE_LABELS: Record<string, string> = {
   human_clinical: "Human clinical evidence",
   regulatory: "Regulatory/government source",
 };
+
+// Real design (2026-11-03): Citadel's own Tactical Map does the actual
+// rendering (MapLibre + Census county boundaries it already has, see
+// Citadel's own map.html) -- this just opens it with a query param,
+// same "fire a plain link, no handshake" pattern Phase 3 already proved
+// is the right one for Baneward<->Citadel, not a new protocol. Hardcoded
+// localhost:8085 because that's Citadel's own fixed port in this
+// ecosystem (same assumption WayStation's own Citadel tie-in makes);
+// genuinely fails if Citadel isn't running here, which openUrl surfaces
+// as a normal browser connection error, not a silent no-op.
+function openOnCitadelMap(symbol: string) {
+  openUrl(`http://localhost:8085/map.html?species=${encodeURIComponent(symbol)}`);
+}
 
 function App() {
   const [query, setQuery] = useState("");
@@ -1217,6 +1231,13 @@ function App() {
                     universal, a real check found roughly a quarter to a third of species
                     have no record here at all. "Introduced" means documented outside its
                     native range, not a safety judgment.
+                  </p>
+                  <button type="button" className="map-link" onClick={() => openOnCitadelMap(selected.symbol)}>
+                    🗺 View on Citadel map
+                  </button>
+                  <p className="form-note">
+                    Opens Citadel's own Tactical Map in your browser (localhost:8085) and
+                    shades these counties there — needs Citadel running on this machine.
                   </p>
                   {selected.distribution
                     .filter((d) => d.level === "state")
