@@ -61,6 +61,12 @@ interface CharacteristicInfo {
   category: string | null;
 }
 
+interface DistributionEntry {
+  level: "state" | "county";
+  subdivision_name: string;
+  nativity_status: string | null;
+}
+
 interface ActivityInfo {
   activity: string;
   dosage: string | null;
@@ -186,6 +192,7 @@ interface SpeciesDetail {
   synonyms: string[];
   lookalikes: LookalikeSummary[];
   field_notes: FieldNoteInfo[];
+  distribution: DistributionEntry[];
 }
 
 const CATEGORIES = ["poisonous", "edible", "medical", "useful"] as const;
@@ -1200,6 +1207,54 @@ function App() {
                 </section>
               ) : (
                 <p className="no-images">No USDA characteristics documented for this species.</p>
+              )}
+
+              {selected.distribution.length > 0 ? (
+                <section className="distribution-section">
+                  <h3>Where it grows</h3>
+                  <p className="form-note">
+                    Real USDA/NRCS state and county occurrence data — coverage isn't
+                    universal, a real check found roughly a quarter to a third of species
+                    have no record here at all. "Introduced" means documented outside its
+                    native range, not a safety judgment.
+                  </p>
+                  {selected.distribution
+                    .filter((d) => d.level === "state")
+                    .map((s) => (
+                      <span
+                        key={s.subdivision_name}
+                        className={`dist-chip dist-${s.nativity_status ?? "unknown"}`}
+                      >
+                        {s.subdivision_name}
+                        {s.nativity_status && ` (${s.nativity_status})`}
+                      </span>
+                    ))}
+                  {selected.distribution.some((d) => d.level === "county") && (
+                    <details className="distribution-counties">
+                      <summary>
+                        {selected.distribution.filter((d) => d.level === "county").length}{" "}
+                        counties/parishes documented
+                      </summary>
+                      <div className="distribution-county-list">
+                        {selected.distribution
+                          .filter((d) => d.level === "county")
+                          .map((c) => (
+                            <span
+                              key={c.subdivision_name}
+                              className={`dist-chip dist-${c.nativity_status ?? "unknown"}`}
+                            >
+                              {c.subdivision_name}
+                            </span>
+                          ))}
+                      </div>
+                    </details>
+                  )}
+                </section>
+              ) : (
+                <p className="no-images">
+                  No state/county distribution data documented for this species in this
+                  source.
+                </p>
               )}
 
               {selected.chemicals.length > 0 && (

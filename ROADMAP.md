@@ -1117,11 +1117,46 @@ loose list that only lives in chat.
   "introduced" vs. "introduced and something else," e.g. cultivated/noxious) worth checking
   before this ships, not assumed to be redundant.
 
-  **Not yet decided**: whether to commit to the real full build (new live schema in
-  `db.rs`, a resumable ingest script against all 35,326 species with real retry/backoff,
-  Rust commands, and the actual map UI tied to Citadel) — this prototype proves the data
-  source and the approach work, it doesn't commit to building the feature. A real decision
-  point, not defaulted into.
+  **Full real data layer shipped, 2026-11-02, same day — "where it grows" is real and
+  live, the Citadel map tie-in is not.** Frank said "let's do it" after the prototype;
+  built the real schema (`distribution` table, `db.rs` — a `UNIQUE(species_symbol, level,
+  subdivision_name)` index exists specifically so the source's own real duplicate-row bug
+  can't quietly reappear on a future re-ingest), a full resumable ingest
+  (`data/ingest_distribution.py`, reusing the prototype's cache so already-fetched species
+  weren't refetched), the Rust command wiring (`get_species` now returns a real
+  `distribution: Vec<DistributionEntry>`), and a real "Where it grows" section in the
+  species detail UI — state chips plus a collapsible, scrollable county list, both colored
+  by the now-resolved native/introduced crosswalk.
+
+  **Real full-scale numbers, all 35,325 species (one of 35,326 had no cached `plant_master_id`
+  to query with), zero hard errors across 2h22m (8,537s) of sustained querying at the same
+  conservative 5 workers the prototype used** — the real risk flagged going in (that this
+  NRCS service might throttle under sustained load the way iNaturalist's and GBIF's APIs
+  both did earlier in this project) did not happen. **1,765,632 real distribution rows**
+  inserted after deduping **397,938 real duplicate rows** the source service returned (the
+  28.8%-in-150-species prototype finding held up at full scale: 28.6% of species had zero
+  state rows, 38.5% zero county rows, both close to the prototype's own 27.3%/34.0%
+  estimates). No nativity code outside the known crosswalk (5/3/7) showed up in the full
+  run.
+
+  **Real cost, measured not guessed**: the master/bundled database grew from 63MB to
+  **216MB** — a real, meaningful jump, but nowhere near the 2GB Git LFS per-file hard wall
+  that forced Phase 1.12's image-pack split, and a small fraction of the 10GB account quota
+  even counting the image packs already consuming ~2.86GB of it. Resynced to the bundled
+  resource and merged into the live running app's own database the same checked, careful
+  way every prior phase did (verified no user data existed in the table yet, then merged;
+  a real transient collision happened here too — the dev app's own auto-rebuild tried to
+  re-open the live database for `ensure_schema` at the exact moment the merge still held a
+  write lock, producing one real `SqliteFailure(DatabaseBusy)` panic — not a logic bug, a
+  genuine race between two processes touching the same file; resolved by letting the merge
+  finish and relaunching clean).
+
+  **Not yet done**: the actual Citadel-side map (species→map shading, map→species lookup)
+  — this ships the real data layer and a plain-text "Where it grows" view that works fully
+  standalone, matching the split Frank's own framing anticipated. The interactive MapLibre
+  tie-in is cross-repo work (this project's own `data/baneward.db` feeding Citadel's
+  `map.html`) that hasn't been designed yet, not something to invent silently — a real,
+  separate next step.
 - Browse the full catalog alphabetically, not just via search-by-name or trait filters —
   real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
   result-row rendering already built for search/wizard/browse results, no new schema, no

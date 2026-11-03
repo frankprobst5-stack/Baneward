@@ -168,6 +168,24 @@ body { margin: 0; }
   color: var(--blue-bright);
 }
 
+.distribution-section { margin-bottom: 20px; }
+.distribution-section h3 { margin-bottom: 4px; }
+.dist-chip {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+}
+.dist-chip.dist-native { border-color: rgba(89, 214, 124, 0.4); color: var(--green); }
+.dist-chip.dist-introduced { border-color: rgba(255, 176, 0, 0.4); color: var(--amber); }
+.dist-chip.dist-unknown { color: var(--text-muted); }
+.distribution-counties { margin-top: 10px; }
+.distribution-counties summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+.distribution-county-list { margin-top: 8px; max-height: 220px; overflow-y: auto; }
+
 .chemistry-section { margin-bottom: 20px; }
 .chemistry-section h3 { margin-bottom: 4px; }
 .chem-group {

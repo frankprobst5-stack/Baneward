@@ -155,6 +155,30 @@ fn ensure_schema(conn: &Connection) {
         CREATE INDEX IF NOT EXISTS idx_characteristics_species ON characteristics(species_symbol);
         CREATE INDEX IF NOT EXISTS idx_characteristics_name_value ON characteristics(name, value);
 
+        -- Real state/county-level distribution data (data/ingest_distribution.py),
+        -- from a separate NRCS ArcGIS service, not the bundled USDA PLANTS
+        -- package itself. Real coverage isn't universal -- a 150-species
+        -- prototype found 27%/34% of species have no state/county record at
+        -- all in this service. The UNIQUE index exists because the source
+        -- service's own county-level rows had real duplicates (28.8% of raw
+        -- rows in the same prototype) -- enforced here so that bug can't
+        -- quietly reappear on a future re-ingest. nativity_status is derived
+        -- from the source's own numeric plant_nativity_id code, cross-checked
+        -- against species.native_status on 26,913 real rows before trusting
+        -- it: code 5 = native, codes 3 and 7 both = introduced (the exact
+        -- difference between 3 and 7 isn't resolved yet, both stored as
+        -- 'introduced' for now). idx_distribution_subdivision exists for the
+        -- real, still-unbuilt click-a-region-see-what-lives-there lookup.
+        CREATE TABLE IF NOT EXISTS distribution (
+            id INTEGER PRIMARY KEY,
+            species_symbol TEXT NOT NULL REFERENCES species(symbol),
+            level TEXT NOT NULL CHECK(level IN ('state','county')),
+            subdivision_name TEXT NOT NULL,
+            nativity_status TEXT
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_distribution_unique ON distribution(species_symbol, level, subdivision_name);
+        CREATE INDEX IF NOT EXISTS idx_distribution_subdivision ON distribution(subdivision_name);
+
         -- Real Dr. Duke phytochemistry data (data/ingest_duke_phytochemistry.py),
         -- normalized on purpose -- a first attempt stored one claims row per
         -- (species, chemical, bioactivity) triple and produced 983,790 rows

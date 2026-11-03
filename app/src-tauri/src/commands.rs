@@ -140,6 +140,13 @@ pub struct CharacteristicInfo {
 }
 
 #[derive(Serialize)]
+pub struct DistributionEntry {
+    pub level: String,
+    pub subdivision_name: String,
+    pub nativity_status: Option<String>,
+}
+
+#[derive(Serialize)]
 pub struct ActivityInfo {
     pub activity: String,
     pub dosage: Option<String>,
@@ -214,6 +221,12 @@ pub struct SpeciesDetail {
     /// `claims`. A field note is a personal observation, not a reviewed
     /// fact; it has no verified/unverified state at all (see db.rs).
     pub field_notes: Vec<FieldNote>,
+    /// Real state/county occurrence records (NRCS distribution service, see
+    /// db.rs). Coverage isn't universal — a real 150-species prototype found
+    /// 27%/34% of species have no state/county record at all here. Empty
+    /// means genuinely undocumented in this service, not "doesn't grow
+    /// anywhere."
+    pub distribution: Vec<DistributionEntry>,
 }
 
 #[tauri::command]
@@ -244,6 +257,7 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                     chemicals: Vec::new(),
                     lookalikes: Vec::new(),
                     field_notes: Vec::new(),
+                    distribution: Vec::new(),
                 })
             },
         )
@@ -446,6 +460,24 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                 observed_at: row.get(4)?,
                 added_by: row.get(5)?,
                 added_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut dist_stmt = conn
+        .prepare(
+            "SELECT level, subdivision_name, nativity_status FROM distribution
+             WHERE species_symbol = ?1 ORDER BY level, subdivision_name",
+        )
+        .map_err(|e| e.to_string())?;
+    species.distribution = dist_stmt
+        .query_map(params![species.symbol], |row| {
+            Ok(DistributionEntry {
+                level: row.get(0)?,
+                subdivision_name: row.get(1)?,
+                nativity_status: row.get(2)?,
             })
         })
         .map_err(|e| e.to_string())?

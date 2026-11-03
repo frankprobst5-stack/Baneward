@@ -84,9 +84,13 @@ real desktop. **Every phase is now shipped.** A real next milestone, v3 — Cont
 Field Reach, is logged and not yet started: a plant-part/preparation safety chart, a
 pasture/property survey for livestock-harmful plants, a patch map with a harvest calendar,
 and medicinal cautions kept visibly separate from the general claims pile — plus a longer
-backlog of real, ranked ideas, including a Citadel-tied regional range map that reuses
-Citadel's own real offline MapLibre/PMTiles map stack (species→map and map→species, not
-available standalone). See [ROADMAP.md](ROADMAP.md) for the real detail.
+backlog of real, ranked ideas. One of those, a regional range map, already has its real
+data layer: **a species' detail view now shows a real "Where it grows" section** — real
+state and county occurrence data for 35,325 species from a public NRCS service, 1.77
+million real rows, zero errors across the full ingest. Works fully standalone today; the
+Citadel-tied interactive map (species→map and map→species, reusing Citadel's own offline
+MapLibre/PMTiles stack) is still backlog, not yet designed. See
+[ROADMAP.md](ROADMAP.md) for the real detail.
 
 ```bash
 cd app
