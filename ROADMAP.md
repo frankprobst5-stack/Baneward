@@ -965,10 +965,16 @@ actually verified until now. The first real release build's generated `.desktop`
 `deep-link: { schemes: [...] }` this project's `tauri.conf.json` had — a real config-shape
 bug, not a missing bundler feature. Fixed and rebuilt; the regenerated `.desktop` file
 correctly gained the `MimeType` line. Real bundles produced: `.deb` (69.9MB), `.rpm`
-(69.9MB), `.AppImage` (146.5MB) — none installed yet (needs `sudo`, a real system change
-left for Frank to run himself, not something to do unprompted). WayStation's own
-`tauri.conf.json` has the identical flat shape and almost certainly the same latent bug —
-flagged separately rather than fixed here, out of scope for this repo.
+(69.9MB), `.AppImage` (146.5MB) — not installed by this session (needs `sudo`, a real
+system change left for Frank to run himself, not something to do unprompted). WayStation's
+own `tauri.conf.json` has the identical flat shape and almost certainly the same latent
+bug — flagged separately rather than fixed here, out of scope for this repo.
+
+**Closed for real, 2026-11-04**: Frank installed the real `.deb` himself and confirmed the
+cockpit tile now launches the actual packaged release — "it worked and is up and running."
+No dev server, no debug binary, no `localhost:1420` dependency. Baneward is now a genuinely
+standalone, installed application, not something that only works while this project's own
+dev tooling happens to be running — the real goal stated all the way back at Phase 1.
 
 ## v3 — Content Depth & Field Reach (planned, not started)
 
