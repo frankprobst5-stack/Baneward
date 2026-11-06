@@ -43,7 +43,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::search_species,
+            commands::browse_alphabetical,
             commands::get_species,
+            commands::add_bookmark,
+            commands::remove_bookmark,
+            commands::list_bookmarks,
+            commands::verification_progress,
             commands::add_claim,
             commands::verify_claim,
             commands::delete_claim,

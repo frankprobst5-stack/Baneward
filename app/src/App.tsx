@@ -68,6 +68,18 @@ interface DistributionEntry {
   nativity_status: string | null;
 }
 
+interface VerificationCategoryStats {
+  category: string;
+  total: number;
+  verified: number;
+}
+
+interface VerificationProgressInfo {
+  total_claims: number;
+  verified_claims: number;
+  by_category: VerificationCategoryStats[];
+}
+
 interface ActivityInfo {
   activity: string;
   dosage: string | null;
@@ -194,6 +206,7 @@ interface SpeciesDetail {
   lookalikes: LookalikeSummary[];
   field_notes: FieldNoteInfo[];
   distribution: DistributionEntry[];
+  is_bookmarked: boolean;
 }
 
 const CATEGORIES = ["poisonous", "edible", "medical", "useful"] as const;
@@ -228,8 +241,17 @@ function openOnCitadelMap(symbol: string) {
   openUrl(`http://localhost:8085/map.html?species=${encodeURIComponent(symbol)}`);
 }
 
+const HIGH_CONTRAST_KEY = "baneward_high_contrast";
+
 function App() {
   const [query, setQuery] = useState("");
+  const [highContrast, setHighContrast] = useState(() => {
+    try {
+      return localStorage.getItem(HIGH_CONTRAST_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [results, setResults] = useState<SpeciesSummary[]>([]);
   const [selected, setSelected] = useState<SpeciesDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -275,6 +297,17 @@ function App() {
   const [aiDescription, setAiDescription] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [alphaMode, setAlphaMode] = useState(false);
+  const [alphaLetter, setAlphaLetter] = useState("A");
+  const [alphaResults, setAlphaResults] = useState<SpeciesSummary[]>([]);
+  const [loadingAlpha, setLoadingAlpha] = useState(false);
+  const [bookmarksMode, setBookmarksMode] = useState(false);
+  const [bookmarkResults, setBookmarkResults] = useState<SpeciesSummary[]>([]);
+  const [loadingBookmarks, setLoadingBookmarks] = useState(false);
+  const [togglingBookmark, setTogglingBookmark] = useState(false);
+  const [progressMode, setProgressMode] = useState(false);
+  const [progress, setProgress] = useState<VerificationProgressInfo | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -381,6 +414,9 @@ function App() {
     setBrowseMode(false);
     setFieldNotesMode(false);
     setAiMode(false);
+    setAlphaMode(false);
+    setBookmarksMode(false);
+    setProgressMode(false);
     setWizardMode(true);
     setWizardStepIndex(0);
     setWizardSelections([]);
@@ -464,6 +500,9 @@ function App() {
     setWizardMode(false);
     setFieldNotesMode(false);
     setAiMode(false);
+    setAlphaMode(false);
+    setBookmarksMode(false);
+    setProgressMode(false);
     setBrowseMode(true);
     setBrowseSelections([]);
     setBrowseResults([]);
@@ -511,6 +550,9 @@ function App() {
     setWizardMode(false);
     setBrowseMode(false);
     setAiMode(false);
+    setAlphaMode(false);
+    setBookmarksMode(false);
+    setProgressMode(false);
     setFieldNotesMode(true);
     await refreshFieldNotesLog();
   }
@@ -557,6 +599,9 @@ function App() {
     setWizardMode(false);
     setBrowseMode(false);
     setFieldNotesMode(false);
+    setAlphaMode(false);
+    setBookmarksMode(false);
+    setProgressMode(false);
     setAiMode(true);
     setAiDescription("");
     setAiError(null);
@@ -584,6 +629,132 @@ function App() {
     } finally {
       setAiParsing(false);
     }
+  }
+
+  async function refreshAlpha(letter: string) {
+    setLoadingAlpha(true);
+    try {
+      const r = await invoke<SpeciesSummary[]>("browse_alphabetical", { letter });
+      setAlphaResults(r);
+    } catch (e) {
+      console.error("browse_alphabetical failed", e);
+    } finally {
+      setLoadingAlpha(false);
+    }
+  }
+
+  async function startAlphabetical() {
+    closePair();
+    setSelected(null);
+    setWizardMode(false);
+    setBrowseMode(false);
+    setFieldNotesMode(false);
+    setAiMode(false);
+    setBookmarksMode(false);
+    setProgressMode(false);
+    setAlphaMode(true);
+    await refreshAlpha(alphaLetter);
+  }
+
+  function exitAlphabetical() {
+    setAlphaMode(false);
+  }
+
+  async function chooseAlphaLetter(letter: string) {
+    setAlphaLetter(letter);
+    await refreshAlpha(letter);
+  }
+
+  async function pickAlphaCandidate(symbol: string) {
+    exitAlphabetical();
+    await openSpecies(symbol);
+  }
+
+  async function refreshBookmarks() {
+    setLoadingBookmarks(true);
+    try {
+      const r = await invoke<SpeciesSummary[]>("list_bookmarks");
+      setBookmarkResults(r);
+    } catch (e) {
+      console.error("list_bookmarks failed", e);
+    } finally {
+      setLoadingBookmarks(false);
+    }
+  }
+
+  async function startBookmarks() {
+    closePair();
+    setSelected(null);
+    setWizardMode(false);
+    setBrowseMode(false);
+    setFieldNotesMode(false);
+    setAiMode(false);
+    setAlphaMode(false);
+    setProgressMode(false);
+    setBookmarksMode(true);
+    await refreshBookmarks();
+  }
+
+  function exitBookmarks() {
+    setBookmarksMode(false);
+  }
+
+  async function pickBookmarkCandidate(symbol: string) {
+    exitBookmarks();
+    await openSpecies(symbol);
+  }
+
+  function toggleHighContrast() {
+    setHighContrast((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(HIGH_CONTRAST_KEY, next ? "1" : "0");
+      } catch {
+        // localStorage unavailable -- the toggle still works for this
+        // session, it just won't be remembered next launch.
+      }
+      return next;
+    });
+  }
+
+  async function toggleBookmark() {
+    if (!selected) return;
+    setTogglingBookmark(true);
+    try {
+      await invoke(selected.is_bookmarked ? "remove_bookmark" : "add_bookmark", {
+        symbol: selected.symbol,
+      });
+      await refreshSelected();
+    } catch (e) {
+      console.error("toggle bookmark failed", e);
+    } finally {
+      setTogglingBookmark(false);
+    }
+  }
+
+  async function startProgress() {
+    closePair();
+    setSelected(null);
+    setWizardMode(false);
+    setBrowseMode(false);
+    setFieldNotesMode(false);
+    setAiMode(false);
+    setAlphaMode(false);
+    setBookmarksMode(false);
+    setProgressMode(true);
+    setLoadingProgress(true);
+    try {
+      const r = await invoke<VerificationProgressInfo>("verification_progress");
+      setProgress(r);
+    } catch (e) {
+      console.error("verification_progress failed", e);
+    } finally {
+      setLoadingProgress(false);
+    }
+  }
+
+  function exitProgress() {
+    setProgressMode(false);
   }
 
   useEffect(() => {
@@ -715,10 +886,20 @@ function App() {
   }, {});
 
   return (
-    <main className="shell">
+    <main className={`shell ${highContrast ? "high-contrast" : ""}`}>
       <header className="header">
-        <h1>🌿 Baneward</h1>
-        <p className="tagline">Offline US wild plant reference — 35,326 species, zero assumed safety claims</p>
+        <div>
+          <h1>🌿 Baneward</h1>
+          <p className="tagline">Offline US wild plant reference — 35,326 species, zero assumed safety claims</p>
+        </div>
+        <button
+          type="button"
+          className={`contrast-toggle ${highContrast ? "active" : ""}`}
+          onClick={toggleHighContrast}
+          title="Larger text, higher contrast — easier to read in direct sunlight"
+        >
+          {highContrast ? "☀ Sun mode: on" : "☀ Sun mode"}
+        </button>
       </header>
 
       <div className="layout">
@@ -741,6 +922,15 @@ function App() {
           </button>
           <button type="button" className="wizard-entry" onClick={startAiDescribe}>
             🤖 Describe what you saw (local AI)
+          </button>
+          <button type="button" className="wizard-entry" onClick={startAlphabetical}>
+            🔤 Browse the full catalog A-Z
+          </button>
+          <button type="button" className="wizard-entry" onClick={startBookmarks}>
+            ⭐ My bookmarks
+          </button>
+          <button type="button" className="wizard-entry" onClick={startProgress}>
+            📊 Review progress
           </button>
           <ul className="results">
             {results.map((r) => (
@@ -1006,7 +1196,119 @@ function App() {
               )}
             </div>
           )}
-          {!wizardMode && !browseMode && !fieldNotesMode && !aiMode && (
+          {alphaMode && (
+            <div className="alpha-browse">
+              <button type="button" className="back-link" onClick={exitAlphabetical}>
+                ✕ Exit A-Z browse
+              </button>
+              <h2>Browse the full catalog</h2>
+              <p className="form-note">
+                Every real species, sorted by common name — or scientific name for the
+                species USDA never gave one. No search needed, just pick a letter.
+              </p>
+              <div className="alpha-letters">
+                {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    className={`alpha-letter ${alphaLetter === l ? "active" : ""}`}
+                    onClick={() => chooseAlphaLetter(l)}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {loadingAlpha && <p>Loading…</p>}
+              {!loadingAlpha && alphaResults.length === 0 && (
+                <p className="placeholder">No species starting with "{alphaLetter}".</p>
+              )}
+              {!loadingAlpha && alphaResults.length > 0 && (
+                <ul className="results wizard-results">
+                  {alphaResults.map((r) => (
+                    <li key={r.symbol} className="result" onClick={() => pickAlphaCandidate(r.symbol)}>
+                      <span className="common">{r.common_name ?? r.scientific_name}</span>
+                      <span className="sci">
+                        <i>{r.scientific_name}</i>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {bookmarksMode && (
+            <div className="alpha-browse">
+              <button type="button" className="back-link" onClick={exitBookmarks}>
+                ✕ Exit bookmarks
+              </button>
+              <h2>My Bookmarks</h2>
+              <p className="form-note">
+                Species you've starred for quick access — most recently bookmarked first.
+              </p>
+              {loadingBookmarks && <p>Loading…</p>}
+              {!loadingBookmarks && bookmarkResults.length === 0 && (
+                <p className="placeholder">
+                  No bookmarks yet — open a species and click "☆ Bookmark" on its page.
+                </p>
+              )}
+              {!loadingBookmarks && bookmarkResults.length > 0 && (
+                <ul className="results wizard-results">
+                  {bookmarkResults.map((r) => (
+                    <li key={r.symbol} className="result" onClick={() => pickBookmarkCandidate(r.symbol)}>
+                      <span className="common">{r.common_name ?? r.scientific_name}</span>
+                      <span className="sci">
+                        <i>{r.scientific_name}</i>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {progressMode && (
+            <div className="alpha-browse">
+              <button type="button" className="back-link" onClick={exitProgress}>
+                ✕ Exit review progress
+              </button>
+              <h2>Claim Verification Progress</h2>
+              <p className="form-note">
+                Every claim starts unverified — this is how much of the real review backlog
+                has actually been checked against its source so far, not how much exists.
+                A low number here isn't a bug, it's the honest state of the data.
+              </p>
+              {loadingProgress && <p>Loading…</p>}
+              {!loadingProgress && progress && (
+                <>
+                  <div className="progress-total">
+                    <span className="progress-total-count">
+                      {progress.verified_claims.toLocaleString()} / {progress.total_claims.toLocaleString()}
+                    </span>
+                    <span className="progress-total-label">claims verified</span>
+                  </div>
+                  <div className="progress-bars">
+                    {progress.by_category.map((c) => {
+                      const pct = c.total > 0 ? (c.verified / c.total) * 100 : 0;
+                      return (
+                        <div key={c.category} className="progress-row">
+                          <span className="progress-cat">{c.category}</span>
+                          <div className="progress-bar-track">
+                            <div
+                              className="progress-bar-fill"
+                              style={{ width: `${Math.max(pct, pct > 0 ? 1.5 : 0)}%` }}
+                            />
+                          </div>
+                          <span className="progress-count">
+                            {c.verified.toLocaleString()} / {c.total.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {!wizardMode && !browseMode && !fieldNotesMode && !aiMode && !alphaMode && !bookmarksMode && !progressMode && (
             <>
           {loadingPair && <p>Loading comparison…</p>}
           {!loadingPair && selectedPair && (
@@ -1132,9 +1434,19 @@ function App() {
           )}
           {!loadingDetail && selected && (
             <div className="detail">
-              <h2>
-                {selected.common_name ?? selected.scientific_name}
-              </h2>
+              <div className="detail-title-row">
+                <h2>
+                  {selected.common_name ?? selected.scientific_name}
+                </h2>
+                <button
+                  type="button"
+                  className={`bookmark-toggle ${selected.is_bookmarked ? "active" : ""}`}
+                  onClick={toggleBookmark}
+                  disabled={togglingBookmark}
+                >
+                  {selected.is_bookmarked ? "★ Bookmarked" : "☆ Bookmark"}
+                </button>
+              </div>
               <p className="sci-name">
                 <i>{selected.scientific_name}</i> {selected.authorship}
                 {selected.family ? ` · ${selected.family}` : ""}

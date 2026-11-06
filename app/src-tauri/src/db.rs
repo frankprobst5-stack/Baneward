@@ -274,6 +274,15 @@ fn ensure_schema(conn: &Connection) {
             added_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_field_notes_species ON field_notes(species_symbol);
+
+        -- Real, deliberately tiny: a species someone checks often, nothing
+        -- more. No `added_by` -- unlike claims/images/field_notes this isn't
+        -- content shared with anyone, just a personal shortcut on this one
+        -- install, so there's no one else's name to record.
+        CREATE TABLE IF NOT EXISTS bookmarks (
+            species_symbol TEXT PRIMARY KEY REFERENCES species(symbol),
+            added_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         ",
     )
     .expect("failed to ensure schema");

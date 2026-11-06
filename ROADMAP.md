@@ -41,12 +41,13 @@ confirmed.** A real next milestone is already logged, not started, revised again
 own real prioritization: **v3 — Content Depth & Field Reach** — a plant-part/preparation
 chart, a pasture/property survey for livestock-harmful plants, a patch map with a harvest
 calendar, and medicinal cautions kept visibly separate from the traditional-use claims pile
-— plus a real backlog of eleven more items (photo-vs-reference comparison, household
-roles, a verification-progress page, a lookalike quiz, state noxious-weed flags, a Garden
-Planner link, high-contrast mode, bookmarks, cross-household claim sharing, alphabetical
-browse, and an experimental photo-based AI identification feature explicitly gated on a
-real accuracy test holding up first). One former backlog item, the Citadel-tied regional
-range map, is no longer backlog — it shipped 2026-11-03, real state/county data both
+— plus a real backlog, now down to seven items after Stage 8's quick-win pass (2026-11-06
+shipped the verification-progress page, high-contrast mode, bookmarks, and alphabetical
+browse): photo-vs-reference comparison, household roles, a lookalike quiz, state
+noxious-weed flags, a Garden Planner link, cross-household claim sharing, and an
+experimental photo-based AI identification feature explicitly gated on a real accuracy
+test holding up first. The Citadel-tied regional range map shipped earlier, 2026-11-03,
+real state/county data both
 directions, verified live on Citadel's own running map. See below for detail.
 
 ## Phase 0 — Prove the data pipeline ✅ done 2026-10-27
@@ -1031,8 +1032,11 @@ loose list that only lives in chat.
   honest gap this would close: there is no user-account system at all today;
   `added_by`/`verified_by` are free-text strings, not real identities — this is a bigger
   addition than it sounds, not a small toggle.
-- A progress page showing how many claims are verified — makes the real, currently-mostly-
-  invisible review backlog (51,580 claims, nearly none reviewed) visible instead of buried.
+- ~~A progress page showing how many claims are verified~~ — ✅ **done, 2026-11-06.** A new
+  "📊 Review progress" view: a real total (51,580 claims, 1 verified, confirmed via direct
+  query before writing anything) plus a per-category breakdown with a simple bar per
+  category, `verification_progress` command. Makes the real, previously invisible review
+  backlog visible instead of buried in 35,326 individual species pages.
 - A lookalike quiz — real, but wants more than one lookalike pair to be worth building;
   depends on the lookalike-curation item above actually happening first.
 - A noxious-weed flag sourced from real state weed lists — a new external data source,
@@ -1041,8 +1045,15 @@ loose list that only lives in chat.
 - A Garden Planner link: identify weeds in the user's own raised beds, and flag plants
   toxic to chickens near the coop. A real, concrete tie to Citadel's own `garden.html`
   (the same file Phase 3 just added Baneward's own tile next to).
-- A high-contrast mode readable in direct sunlight — real, standalone, no data dependency.
-- Bookmarks for frequently-checked species — real, small, standalone.
+- ~~A high-contrast mode readable in direct sunlight~~ — ✅ **done, 2026-11-06.** A "☀ Sun
+  mode" toggle in the header, persisted in `localStorage` — pure black/white, larger base
+  text, thicker borders. Deliberately blunt rather than a themeable system: the real goal
+  is "readable outside right now," not a second polished theme.
+- ~~Bookmarks for frequently-checked species~~ — ✅ **done, 2026-11-06.** A new `bookmarks`
+  table (species symbol only, no `added_by` — unlike every other user-contributed table
+  here, this isn't shared content, just a personal shortcut on one install), a ☆/★ toggle
+  on a species' own detail page, and a "⭐ My bookmarks" entry point reusing the existing
+  result-row rendering.
 - **Regional range map, both directions: species→map and map→species.** Frank's own idea
   (2026-11-02): show where a species actually lives on a map, and separately, click a
   region and get back everything that lives there. Checked the real tech behind it before
@@ -1204,10 +1215,13 @@ loose list that only lives in chat.
   returned all 222 species Baneward has documented there, colored by native/introduced,
   zero console errors. Full detail in Citadel's own `ROADMAP.md` (Phase 9) — this app only
   needed the one new button, everything else lives on Citadel's side.
-- Browse the full catalog alphabetically, not just via search-by-name or trait filters —
-  real and genuinely small: a plain `ORDER BY common_name` list reusing the exact same
-  result-row rendering already built for search/wizard/browse results, no new schema, no
-  new backend concept. The cheapest real item in this whole list.
+- ~~Browse the full catalog alphabetically~~ — ✅ **done, 2026-11-06.** A new "🔤 Browse the
+  full catalog A-Z" entry point: an A-Z letter picker plus a `browse_alphabetical` command,
+  `COALESCE(common_name, scientific_name)` for both sort and letter-filter so the 4,068
+  species with no real USDA common name (confirmed via a direct count, not assumed) still
+  show up under their scientific name's own first letter instead of silently vanishing.
+  Reused the exact same result-row rendering already built for search/wizard/browse
+  results — the cheapest real item in the whole list, confirmed cheap in practice too.
 - Sharing verified claims between trusted households — imports arrive unverified until a
   human reviews them, the exact same unverified-by-default discipline this whole project
   already runs on, just applied across installs instead of within one. Real overlap with

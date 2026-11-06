@@ -35,9 +35,63 @@ body { margin: 0; }
   padding: 20px 24px 0;
 }
 
-.header { margin-bottom: 16px; }
+.header { margin-bottom: 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .header h1 { margin: 0; font-size: 1.6rem; letter-spacing: 0.02em; }
 .tagline { margin: 4px 0 0; color: var(--text-muted); font-size: 0.85rem; }
+
+.contrast-toggle {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+.contrast-toggle:hover { border-color: var(--amber); }
+.contrast-toggle.active { background: var(--amber); border-color: var(--amber); color: #05090d; font-weight: 600; }
+
+/* Real, deliberately blunt sun-readable theme: pure black/white instead of
+   this app's own dim blue-grey panel tones, bigger base text, thicker
+   borders -- tuned for a bright outdoor screen, not a second "nice" theme.
+   Overrides live here, scoped under .high-contrast, rather than as a
+   parallel set of CSS variables threaded through every component, since
+   the real goal is "readable outside right now," not a themeable system. */
+.shell.high-contrast {
+  background-color: #000;
+  color: #fff;
+  font-size: 1.14em;
+}
+.high-contrast .tagline,
+.high-contrast .text-muted,
+.high-contrast .sci-name,
+.high-contrast .synonyms,
+.high-contrast .placeholder,
+.high-contrast .chem-part,
+.high-contrast .facts dt {
+  color: #e0e0e0 !important;
+}
+.high-contrast .result,
+.high-contrast .wizard-entry,
+.high-contrast .wizard-option,
+.high-contrast .action-btn,
+.high-contrast input,
+.high-contrast textarea,
+.high-contrast select,
+.high-contrast button {
+  background: #111 !important;
+  border-color: #fff !important;
+  color: #fff !important;
+}
+.high-contrast .result.active,
+.high-contrast .wizard-option.active {
+  background: #fff !important;
+  color: #000 !important;
+}
+.high-contrast a { color: #9cf !important; }
+.high-contrast .contrast-toggle.active { background: #fff !important; color: #000 !important; }
 
 .layout {
   display: grid;
@@ -107,6 +161,21 @@ body { margin: 0; }
 .placeholder { color: var(--text-muted); }
 
 .detail h2 { margin: 0 0 2px; }
+.detail-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.detail-title-row h2 { flex: 1; }
+.bookmark-toggle {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bookmark-toggle.active { border-color: var(--amber); color: var(--amber); }
+.bookmark-toggle:hover { border-color: var(--amber); }
+.bookmark-toggle:disabled { opacity: 0.6; cursor: default; }
 .sci-name { color: var(--text-muted); margin: 0 0 4px; font-size: 0.9rem; }
 .synonyms { color: var(--text-muted); margin: 0 0 14px; font-size: 0.8rem; }
 
@@ -373,6 +442,29 @@ button.danger:hover { border-color: var(--red); color: var(--red); }
 }
 .wizard { display: flex; flex-direction: column; gap: 10px; }
 .wizard h2 { margin: 4px 0 0; }
+.progress-total { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 20px; }
+.progress-total-count { font-size: 1.8rem; font-weight: 700; color: var(--blue-bright); }
+.progress-total-label { color: var(--text-muted); font-size: 0.85rem; }
+.progress-bars { display: flex; flex-direction: column; gap: 12px; }
+.progress-row { display: grid; grid-template-columns: 90px 1fr 110px; align-items: center; gap: 10px; }
+.progress-cat { font-size: 0.82rem; color: var(--text-muted); text-transform: capitalize; }
+.progress-bar-track { background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; height: 14px; overflow: hidden; }
+.progress-bar-fill { background: var(--green); height: 100%; border-radius: 6px 0 0 6px; transition: width 0.3s ease; }
+.progress-count { font-size: 0.78rem; color: var(--text-muted); text-align: right; }
+
+.alpha-letters { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 16px; }
+.alpha-letter {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.alpha-letter:hover { border-color: var(--blue); }
+.alpha-letter.active { background: var(--blue); border-color: var(--blue); color: #05090d; }
+
 .wizard-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
 .wizard-option {
   background: var(--bg-input);

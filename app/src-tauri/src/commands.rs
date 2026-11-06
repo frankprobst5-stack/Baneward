@@ -90,6 +90,50 @@ pub fn search_species(db: State<Db>, query: String) -> Result<Vec<SpeciesSummary
         .collect())
 }
 
+/// Real, deliberately cheap: a plain alphabetical list, no trait filters, no
+/// AI -- for someone who just wants to flip through the catalog by name
+/// rather than search for something specific. Sorts (and letter-filters) by
+/// `COALESCE(common_name, scientific_name)` so the 4,068 species with no
+/// real USDA common name (confirmed via a direct count, not assumed) still
+/// show up under their scientific name's own first letter instead of
+/// silently vanishing from an A-Z browse.
+#[tauri::command]
+pub fn browse_alphabetical(db: State<Db>, letter: String) -> Result<Vec<SpeciesSummary>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let prefix = format!("{}%", letter.trim());
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT symbol, scientific_name, common_name, family,
+                    EXISTS(SELECT 1 FROM claims c WHERE c.species_symbol = species.symbol
+                           AND c.category = 'poisonous' AND c.verified = 1) AS has_poisonous_claim,
+                    CASE WHEN common_name IS NOT NULL THEN 'common_name' ELSE 'scientific_name' END AS matched_via
+             FROM species
+             WHERE COALESCE(common_name, scientific_name) LIKE ?1 COLLATE NOCASE
+             ORDER BY COALESCE(common_name, scientific_name) COLLATE NOCASE
+             LIMIT 500",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(params![prefix], |row| {
+            Ok(SpeciesSummary {
+                symbol: row.get(0)?,
+                scientific_name: row.get(1)?,
+                common_name: row.get(2)?,
+                family: row.get(3)?,
+                has_poisonous_claim: row.get(4)?,
+                matched_via: row.get(5)?,
+                matched_synonym: None,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows)
+}
+
 #[derive(Serialize)]
 pub struct ImageInfo {
     pub id: i64,
@@ -227,6 +271,7 @@ pub struct SpeciesDetail {
     /// means genuinely undocumented in this service, not "doesn't grow
     /// anywhere."
     pub distribution: Vec<DistributionEntry>,
+    pub is_bookmarked: bool,
 }
 
 #[tauri::command]
@@ -258,6 +303,7 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
                     lookalikes: Vec::new(),
                     field_notes: Vec::new(),
                     distribution: Vec::new(),
+                    is_bookmarked: false,
                 })
             },
         )
@@ -484,7 +530,129 @@ pub fn get_species(db: State<Db>, symbol: String) -> Result<SpeciesDetail, Strin
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
+    species.is_bookmarked = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE species_symbol = ?1)",
+            params![species.symbol],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
     Ok(species)
+}
+
+/// Real, deliberately the smallest possible toggle -- add_bookmark/
+/// remove_bookmark instead of one combined "set" command, matching this
+/// file's own established pattern of separate, explicit verbs (add_claim/
+/// verify_claim/delete_claim) rather than one command silently branching on
+/// a boolean.
+#[tauri::command]
+pub fn add_bookmark(db: State<Db>, symbol: String) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO bookmarks (species_symbol) VALUES (?1)",
+        params![symbol],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn remove_bookmark(db: State<Db>, symbol: String) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM bookmarks WHERE species_symbol = ?1", params![symbol])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_bookmarks(db: State<Db>) -> Result<Vec<SpeciesSummary>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.symbol, s.scientific_name, s.common_name, s.family,
+                    EXISTS(SELECT 1 FROM claims c WHERE c.species_symbol = s.symbol
+                           AND c.category = 'poisonous' AND c.verified = 1) AS has_poisonous_claim,
+                    CASE WHEN s.common_name IS NOT NULL THEN 'common_name' ELSE 'scientific_name' END AS matched_via
+             FROM bookmarks b
+             JOIN species s ON s.symbol = b.species_symbol
+             ORDER BY b.added_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(SpeciesSummary {
+                symbol: row.get(0)?,
+                scientific_name: row.get(1)?,
+                common_name: row.get(2)?,
+                family: row.get(3)?,
+                has_poisonous_claim: row.get(4)?,
+                matched_via: row.get(5)?,
+                matched_synonym: None,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows)
+}
+
+#[derive(Serialize)]
+pub struct VerificationCategoryStats {
+    pub category: String,
+    pub total: i64,
+    pub verified: i64,
+}
+
+#[derive(Serialize)]
+pub struct VerificationProgress {
+    pub total_claims: i64,
+    pub verified_claims: i64,
+    pub by_category: Vec<VerificationCategoryStats>,
+}
+
+/// Real, deliberately blunt: makes the actual review backlog visible rather
+/// than buried inside 35,326 individual species pages. No species-level
+/// breakdown here on purpose -- the point is the one number that's easy to
+/// lose sight of (51,580 claims, as of this feature's own design pass,
+/// nearly none reviewed), not a leaderboard.
+#[tauri::command]
+pub fn verification_progress(db: State<Db>) -> Result<VerificationProgress, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+
+    let (total_claims, verified_claims) = conn
+        .query_row(
+            "SELECT COUNT(*), COALESCE(SUM(verified), 0) FROM claims",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT category, COUNT(*), COALESCE(SUM(verified), 0)
+             FROM claims GROUP BY category ORDER BY COUNT(*) DESC",
+        )
+        .map_err(|e| e.to_string())?;
+    let by_category = stmt
+        .query_map([], |row| {
+            Ok(VerificationCategoryStats {
+                category: row.get(0)?,
+                total: row.get(1)?,
+                verified: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(VerificationProgress {
+        total_claims,
+        verified_claims,
+        by_category,
+    })
 }
 
 const VALID_CATEGORIES: [&str; 4] = ["medical", "poisonous", "edible", "useful"];
