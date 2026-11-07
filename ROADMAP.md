@@ -977,6 +977,13 @@ No dev server, no debug binary, no `localhost:1420` dependency. Baneward is now 
 standalone, installed application, not something that only works while this project's own
 dev tooling happens to be running — the real goal stated all the way back at Phase 1.
 
+**Stage 8 release confirmed live, 2026-11-07**: a fresh `.deb` carrying alphabetical browse,
+bookmarks, sun mode, and the review-progress page was built, installed over the previous
+release, and relaunched for real — the live database's `bookmarks` table and all 35,326
+species were confirmed intact immediately after. Frank confirmed on his own physical
+desktop: "yes both look great." Same real install-and-confirm discipline as every prior
+release.
+
 ## v3 — Content Depth & Field Reach (planned, not started)
 
 First drafted 2026-11-01 from an honest self-assessment once every build phase shipped —
