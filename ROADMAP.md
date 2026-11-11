@@ -5,6 +5,9 @@ the [Citadel Ecosystem](https://github.com/frankprobst5-stack/citadel-ecosystem)
 
 ## Where things stand (2026-11-01)
 
+**Public, 2026-11-08** — repo flipped from private to public after a real audit (secret
+scan, README/LICENSE check, both clean) as part of an ecosystem-wide visibility review.
+
 Repo created, name chosen (`Baneward` — "bane" = poison, as in wolfsbane/henbane, + "ward" =
 guard/protect, naming the core red-alert-for-poison feature directly). **Phase 0 is fully
 done**: all 35,326 real US species are enriched and sitting in a real local database, zero
@@ -1022,12 +1025,15 @@ loose list that only lives in chat.
   construction — nothing in this app syncs anywhere today.
 - **Medicinal cautions.** Sourced warnings about pregnancy, drug interactions, and
   dangerous doses, kept as their own category so they can't get buried among ~200
-  traditional-use claims for one species (castor bean's own real count). Real open design
-  question: a new `claims.category` value (e.g. `caution`), or a fully separate small
-  table the way `lookalike_pairs` got its own table instead of overloading `claims` —
-  worth deciding deliberately, given the same real reasoning that split lookalikes out in
-  the first place (a thing that must never get quietly buried needs its own real
-  visibility, not just a tag on a pile).
+  traditional-use claims for one species (castor bean's own real count). **Design decided,
+  2026-11-08**: a fully separate `medicinal_warnings` table, zero architectural fallback
+  into `claims` — the same real reasoning that split `lookalike_pairs` out applies with
+  more force here: a traditional-use claim is archival ("historically used for cough"), a
+  medicinal caution is a severe safety limit ("abortifacient; do not consume if pregnant"),
+  and storing both in one structure risks a UI parsing slip burying a real toxicity warning
+  inside a sea of historical notes. A dedicated table lets the detail page force
+  high-contrast warnings to render before any historical claim text, unconditionally — not
+  yet built, but the shape is settled.
 
 **The rest of the backlog, not yet prioritized, logged so none of it quietly disappears:**
 
@@ -1038,7 +1044,15 @@ loose list that only lives in chat.
 - Household roles — only specific people can verify a claim, anyone can add one. Real,
   honest gap this would close: there is no user-account system at all today;
   `added_by`/`verified_by` are free-text strings, not real identities — this is a bigger
-  addition than it sounds, not a small toggle.
+  addition than it sounds, not a small toggle. **Candidate direction proposed, 2026-11-08,
+  not yet adopted**: skip centralized accounts entirely — per-device asymmetric keypairs
+  generated at setup (a friendly alias like "Station-01-Frank"), with `verified=1` rows
+  storing the alias, a timestamp, and a signature from that station's private key, so any
+  node can independently verify a claim's real origin without a central user table. Fits
+  the local-first philosophy better than centralized auth would, but it's genuine PKI
+  (keypair generation, signature verification, key distribution across a household's
+  actual handful of devices) — real tradeoff still open: does household scale here actually
+  justify that, versus something lighter.
 - ~~A progress page showing how many claims are verified~~ — ✅ **done, 2026-11-06.** A new
   "📊 Review progress" view: a real total (51,580 claims, 1 verified, confirmed via direct
   query before writing anything) plus a per-category breakdown with a simple bar per
